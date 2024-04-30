@@ -1,0 +1,27 @@
+Source: valkey
+Section: database
+Priority: optional
+Maintainer: Evgeniy Patlan <evgeniy.patlan@percona.com>
+Build-Depends: debhelper (>= 9), make, gcc, pkg-config, libsystemd-dev, openssl
+Standards-Version: 4.1.4
+Homepage: https://valkey.io
+
+Package: valkey
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, logrotate
+Conflicts: redis
+Description: A persistent key-value database
+ Valkey is an advanced key-value store described as a data structure server.
+
+Package: valkey-devel
+Architecture: any
+Depends: valkey (= ${binary:Version}), ${misc:Depends}
+Description: Development header for Valkey module development
+ Header file required for building loadable Valkey modules.
+
+Package: valkey-compat
+Architecture: any
+Depends: valkey (= ${binary:Version}), ${misc:Depends}
+Description: Config conversion scripts from redis to valkey
+ Provides scripts to convert configurations from Redis to Valkey.
+
