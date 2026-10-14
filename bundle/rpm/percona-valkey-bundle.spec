@@ -31,6 +31,21 @@ Requires:       percona-valkey-ldap%{?_isa} >= 1.1.1
 # built with -march=native.
 Requires:       percona-valkey-audit%{?_isa} >= 1.0.0-4
 
+# The web administration interface, as a weak dependency: dnf installs it along
+# with the bundle wherever it can be resolved, and leaves it out where it
+# cannot, instead of making the whole bundle uninstallable. It is the only
+# package in the set that needs a language runtime -- "(nodejs >= 1:20 or
+# nodejs22 >= 1:22)" -- and that floor is not met from the base repositories on
+# every target the bundle is built for: on EL8 and EL9 modular filtering hides
+# every modular nodejs until a stream is enabled. Amazon Linux 2023 resolves it
+# through nodejs22 and EL10 through its base nodejs. A hard Requires would turn
+# each of those into a failed `dnf install percona-valkey-bundle`.
+#
+# It is also a Percona addition rather than part of the upstream curated set
+# (valkey-io/valkey-bundle ships no admin interface), which is the second
+# reason to keep it weak.
+Recommends:     percona-valkey-admin-server%{?_isa} >= 1.2.0
+
 %description
 percona-valkey-bundle is a meta-package that installs the Percona Valkey server
 together with all supported modules in one step:
@@ -40,6 +55,10 @@ together with all supported modules in one step:
   * percona-valkey-search  (FT.*    — vector / full-text search)
   * percona-valkey-ldap    (LDAP authentication)
   * percona-valkey-audit   (audit logging)
+
+It additionally recommends percona-valkey-admin-server, the web administration
+interface, which is installed along with the bundle wherever its Node (>= 20)
+runtime can be satisfied.
 
 It contains no files of its own; it only declares dependencies. The modules are
 installed into the Valkey module directory but are not loaded automatically;

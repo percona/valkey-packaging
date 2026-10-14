@@ -30,6 +30,46 @@ MODULE_DIR=/usr/lib64/valkey/modules
     [ "$(find "$MODULE_DIR" -maxdepth 1 -name '*.so' -type f | wc -l)" -ge 5 ]
 }
 
+@test 'the admin server is installed only for the bundle variant' {
+    if [ "$VARIANT" = "bundle" ]; then
+        rpm -q percona-valkey-admin-server
+    else
+        ! rpm -q percona-valkey-admin-server
+    fi
+}
+
+@test 'the admin server payload, unit and user are in place' {
+    [ "$VARIANT" = "bundle" ] || skip 'slim variant ships no admin server'
+    [ -f /usr/lib/percona-valkey-admin-server/apps/server/dist/index.cjs ]
+    [ -f /usr/lib/systemd/system/valkey-admin.service ]
+    getent passwd valkey-admin
+    [ "$(stat -c '%U:%G' /etc/valkey-admin/valkey-admin.env)" = "root:valkey-admin" ]
+    [ "$(stat -c '%a' /etc/valkey-admin/valkey-admin.env)" = "640" ]
+}
+
+@test 'the admin server has a node >= 20 to run on' {
+    [ "$VARIANT" = "bundle" ] || skip 'slim variant ships no admin server'
+    major="$(node --version | sed 's/^v//; s/\..*//')"
+    [ "$major" -ge 20 ]
+}
+
+@test 'the admin server is enabled' {
+    [ "$VARIANT" = "bundle" ] || skip 'slim variant ships no admin server'
+    systemctl is-enabled valkey-admin.service
+}
+
+@test 'the admin server is left bound to loopback' {
+    [ "$VARIANT" = "bundle" ] || skip 'slim variant ships no admin server'
+    ! grep -qE '^SERVER_BIND_HOST=' /etc/valkey-admin/valkey-admin.env
+}
+
+@test 'the admin connection is unset at bake time' {
+    # The first-boot unit fills these in with the password it generates; an
+    # image that already carried them would ship a known credential.
+    [ "$VARIANT" = "bundle" ] || skip 'slim variant ships no admin server'
+    ! grep -qE '^VALKEY_(HOST|PORT|PASSWORD)=' /etc/valkey-admin/valkey-admin.env
+}
+
 @test 'no modules are present for the slim variant' {
     [ "$VARIANT" = "slim" ] || skip 'bundle variant ships modules'
     [ "$(find "$MODULE_DIR" -maxdepth 1 -name '*.so' -type f 2>/dev/null | wc -l)" -eq 0 ]

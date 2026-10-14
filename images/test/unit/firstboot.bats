@@ -13,6 +13,7 @@ setup() {
     GENERATED="$VALKEY_FIRSTBOOT_ROOT/etc/valkey/valkey-generated.conf"
     MARKER="$VALKEY_FIRSTBOOT_ROOT/etc/valkey/.firstboot-done"
     MOTD="$VALKEY_FIRSTBOOT_ROOT/etc/motd.d/30-valkey"
+    ADMIN_ENV="$VALKEY_FIRSTBOOT_ROOT/etc/valkey-admin/valkey-admin.env"
 }
 
 @test 'generates a 32 character alphanumeric password' {
@@ -93,6 +94,80 @@ setup() {
     password=$(grep '^requirepass ' "$GENERATED" | cut -d' ' -f2)
     grep -q "$password" "$VALKEY_FIRSTBOOT_CONSOLE"
     grep -q "$password" "$MOTD"
+}
+
+@test 'fills in the admin connection when the admin server is installed' {
+    install -d -m0750 "$VALKEY_FIRSTBOOT_ROOT/etc/valkey-admin"
+    printf 'DEPLOYMENT_MODE=Web\nPORT=8080\n' > "$ADMIN_ENV"
+    chmod 0640 "$ADMIN_ENV"
+    printf 'port 6379\n' > "$VALKEY_FIRSTBOOT_ROOT/etc/valkey/default.conf"
+
+    run "$SCRIPT"
+    [ "$status" -eq 0 ]
+    password=$(grep '^requirepass ' "$GENERATED" | cut -d' ' -f2)
+    grep -qx 'VALKEY_HOST=127.0.0.1' "$ADMIN_ENV"
+    grep -qx 'VALKEY_PORT=6379' "$ADMIN_ENV"
+    grep -qx "VALKEY_PASSWORD=${password}" "$ADMIN_ENV"
+    # The settings the package shipped must survive.
+    grep -qx 'DEPLOYMENT_MODE=Web' "$ADMIN_ENV"
+    grep -qx 'PORT=8080' "$ADMIN_ENV"
+}
+
+@test 'takes the admin connection port from the server configuration' {
+    install -d -m0750 "$VALKEY_FIRSTBOOT_ROOT/etc/valkey-admin"
+    printf 'PORT=8080\n' > "$ADMIN_ENV"
+    printf 'port 6380\n' > "$VALKEY_FIRSTBOOT_ROOT/etc/valkey/default.conf"
+
+    run "$SCRIPT"
+    grep -qx 'VALKEY_PORT=6380' "$ADMIN_ENV"
+}
+
+@test 'defaults the admin connection port when the configuration has none' {
+    install -d -m0750 "$VALKEY_FIRSTBOOT_ROOT/etc/valkey-admin"
+    printf 'PORT=8080\n' > "$ADMIN_ENV"
+
+    run "$SCRIPT"
+    grep -qx 'VALKEY_PORT=6379' "$ADMIN_ENV"
+}
+
+@test 'keeps the admin env file at mode 0640 while writing to it' {
+    install -d -m0750 "$VALKEY_FIRSTBOOT_ROOT/etc/valkey-admin"
+    printf 'PORT=8080\n' > "$ADMIN_ENV"
+    chmod 0640 "$ADMIN_ENV"
+
+    run "$SCRIPT"
+    # Both halves matter: writing through a temporary file and moving it into
+    # place would leave the operator password readable at 0600 root-only (the
+    # unit could not read it) or 0644 (anyone could).
+    grep -q '^VALKEY_PASSWORD=' "$ADMIN_ENV"
+    [ "$(stat -c '%a' "$ADMIN_ENV")" = "640" ]
+}
+
+@test 'writes each admin connection setting exactly once on a rerun' {
+    install -d -m0750 "$VALKEY_FIRSTBOOT_ROOT/etc/valkey-admin"
+    printf 'PORT=8080\nVALKEY_HOST=10.0.0.1\nVALKEY_PASSWORD=stale\n' > "$ADMIN_ENV"
+
+    run "$SCRIPT"
+    [ "$(grep -c '^VALKEY_HOST=' "$ADMIN_ENV")" -eq 1 ]
+    [ "$(grep -c '^VALKEY_PASSWORD=' "$ADMIN_ENV")" -eq 1 ]
+    ! grep -q '^VALKEY_HOST=10.0.0.1$' "$ADMIN_ENV"
+    ! grep -q '^VALKEY_PASSWORD=stale$' "$ADMIN_ENV"
+}
+
+@test 'leaves no admin env behind when the admin server is not installed' {
+    run "$SCRIPT"
+    [ "$status" -eq 0 ]
+    [ ! -e "$ADMIN_ENV" ]
+    ! grep -q 'admin interface' "$MOTD"
+}
+
+@test 'mentions the admin interface in the banner only when it is installed' {
+    install -d -m0750 "$VALKEY_FIRSTBOOT_ROOT/etc/valkey-admin"
+    printf 'PORT=8080\n' > "$ADMIN_ENV"
+
+    run "$SCRIPT"
+    grep -q 'admin interface listens on 127.0.0.1:8080' "$MOTD"
+    grep -q 'admin interface listens on 127.0.0.1:8080' "$VALKEY_FIRSTBOOT_CONSOLE"
 }
 
 @test 'restricts the generated configuration to mode 0640' {
