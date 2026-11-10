@@ -169,7 +169,7 @@ if [ "$IS_BUNDLE" = "1" ]; then
     echo "10b. Bundle modules auto-loaded (MODULE LIST):"
     # The bundle entrypoint auto-loads every module in the module dir. Each must
     # show up in MODULE LIST under its registered name.
-    for mod in json bf search ldap; do
+    for mod in json bf search ldap audit; do
         check "module '$mod' is loaded" \
             sh -c "docker exec '$CNT' valkey-cli MODULE LIST | grep -q '$mod'"
     done

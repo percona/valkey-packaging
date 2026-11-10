@@ -1533,6 +1533,7 @@ test_bundle_meta() {
     assert_file_exists "${module_dir}/libvalkey_bloom.so" "bloom module pulled in by bundle"
     assert_file_exists "${module_dir}/libsearch.so"       "search module pulled in by bundle"
     assert_file_exists "${module_dir}/libvalkey_ldap.so"  "ldap module pulled in by bundle"
+    assert_file_exists "${module_dir}/libvalkeyaudit.so"  "audit module pulled in by bundle"
 }
 
 ###############################################################################
