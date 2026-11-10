@@ -33,7 +33,7 @@ MOD_SOURCE_json   := https://github.com/valkey-io/valkey-json
 MOD_SOURCE_bloom  := https://github.com/valkey-io/valkey-bloom
 MOD_SOURCE_search := https://github.com/valkey-io/valkey-search
 MOD_SOURCE_ldap   := https://github.com/valkey-io/valkey-ldap
-MOD_SOURCE_audit  := https://github.com/martinrvisser/valkey-audit
+MOD_SOURCE_audit  := https://github.com/percona/valkey-audit
 
 MODULE ?= json
 
