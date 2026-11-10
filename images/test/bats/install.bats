@@ -20,13 +20,14 @@ MODULE_DIR=/usr/lib64/valkey/modules
     fi
 }
 
-@test 'all four modules are present for the bundle variant' {
+@test 'all five modules are present for the bundle variant' {
     [ "$VARIANT" = "bundle" ] || skip 'slim variant ships no modules'
     rpm -q percona-valkey-json
     rpm -q percona-valkey-bloom
     rpm -q percona-valkey-search
     rpm -q percona-valkey-ldap
-    [ "$(find "$MODULE_DIR" -maxdepth 1 -name '*.so' -type f | wc -l)" -ge 4 ]
+    rpm -q percona-valkey-audit
+    [ "$(find "$MODULE_DIR" -maxdepth 1 -name '*.so' -type f | wc -l)" -ge 5 ]
 }
 
 @test 'the admin server is installed only for the bundle variant' {

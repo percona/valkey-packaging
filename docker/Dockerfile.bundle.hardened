@@ -1,5 +1,5 @@
 # Percona Valkey Bundle (Hardened) image: the Percona Valkey server plus every
-# supported module (json, bloom, search, ldap), on a Docker Hardened Image (DHI)
+# supported module (json, bloom, search, ldap, audit), on a Docker Hardened Image (DHI)
 # distroless runtime. Built by installing the percona-valkey-bundle meta-package
 # in a -dev stage, then copying only the runtime bits (binaries, module .so
 # files, and their shared libraries) into the distroless base.
@@ -60,7 +60,9 @@ RUN set -eux; \
 # Assemble the runtime filesystem: valkey binaries, config, the module .so files,
 # and every shared library the binaries AND modules need (collected via ldd).
 RUN set -eux; \
-	mkdir -p /runtime/data /runtime/run/valkey /runtime/etc /runtime/usr/local/bin \
+	# /var/log/valkey: the audit module logs to /var/log/valkey/audit.log by
+	# default and the server will not start if it cannot open that file. \
+	mkdir -p /runtime/data /runtime/run/valkey /runtime/var/log/valkey /runtime/etc /runtime/usr/local/bin \
 		/runtime/usr/lib/valkey/modules; \
 	\
 	cp /usr/bin/valkey-* /runtime/usr/local/bin/; \
@@ -93,8 +95,8 @@ RUN set -eux; \
 	\
 	VALKEY_UID=$(id -u valkey); \
 	VALKEY_GID=$(getent group valkey | cut -d: -f3); \
-	chown ${VALKEY_UID}:${VALKEY_GID} /runtime/data /runtime/run/valkey /runtime/etc/valkey; \
-	chmod 750 /runtime/data /runtime/run/valkey; \
+	chown ${VALKEY_UID}:${VALKEY_GID} /runtime/data /runtime/run/valkey /runtime/var/log/valkey /runtime/etc/valkey; \
+	chmod 750 /runtime/data /runtime/run/valkey /runtime/var/log/valkey; \
 	\
 	grep '^valkey:' /etc/passwd > /runtime/etc/passwd.valkey; \
 	grep '^root:' /etc/passwd >> /runtime/etc/passwd.valkey; \
@@ -117,7 +119,7 @@ LABEL org.opencontainers.image.authors="info@percona.com" \
       org.opencontainers.image.source="https://github.com/valkey-io/valkey-bundle" \
       org.opencontainers.image.vendor="Percona" \
       org.opencontainers.image.title="Percona Valkey Bundle (Hardened)" \
-      org.opencontainers.image.description="Hardened Percona Valkey bundle (server + json/bloom/search/ldap modules) built on Docker Hardened Image (DHI)" \
+      org.opencontainers.image.description="Hardened Percona Valkey bundle (server + json/bloom/search/ldap/audit modules) built on Docker Hardened Image (DHI)" \
       org.opencontainers.image.version="${VALKEY_VERSION}" \
       org.opencontainers.image.base.name="${BASE_IMAGE}:${BASE_RUNTIME_TAG}" \
       org.opencontainers.image.base.digest="${BASE_RUNTIME_DIGEST}"
@@ -138,6 +140,7 @@ COPY --from=package-install /runtime/usr/lib/ /usr/lib/
 # Copy data and run directories with correct ownership
 COPY --chown=valkey:valkey --from=package-install /runtime/data/ /data/
 COPY --chown=valkey:valkey --from=package-install /runtime/run/valkey/ /run/valkey/
+COPY --chown=valkey:valkey --from=package-install /runtime/var/log/valkey/ /var/log/valkey/
 
 WORKDIR /data
 
