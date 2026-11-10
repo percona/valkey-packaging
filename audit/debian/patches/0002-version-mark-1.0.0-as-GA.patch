@@ -1,0 +1,26 @@
+From 1d3d69d0c10b99b34ddcd98e8f57d4da22ecfa60 Mon Sep 17 00:00:00 2001
+From: Evgeniy Patlan <evgeniy.patlan@percona.com>
+Date: Tue, 10 Nov 2026 10:10:57 +0200
+Subject: [PATCH 2/2] version: mark 1.0.0 as GA
+
+
+upstream main still has VALKEYAUDIT_VERSION_RC 1, so the module reports
+1.0.0-rc1 in MODULE LIST / INFO. Packages are 1.0.0 GA.
+Drop once upstream tags v1.0.0 with VALKEYAUDIT_VERSION_RC 0.
+---
+ src/version.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/version.h b/src/version.h
+index f683260..6cc6ed2 100644
+--- a/src/version.h
++++ b/src/version.h
+@@ -4,7 +4,7 @@
+ #define VALKEYAUDIT_VERSION_MAJOR 1
+ #define VALKEYAUDIT_VERSION_MINOR 0
+ #define VALKEYAUDIT_VERSION_PATCH 0
+-#define VALKEYAUDIT_VERSION_RC    1     /* 0 for GA, N for rcN */
++#define VALKEYAUDIT_VERSION_RC    0     /* 0 for GA, N for rcN */
+ 
+ /* Encode DEV byte: 0xFF for GA, (RC + 1) for rc candidates */
+ #if VALKEYAUDIT_VERSION_RC == 0

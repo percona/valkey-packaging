@@ -24,6 +24,14 @@ readonly DEFAULT_JSON_VERSION="1.0.3"
 readonly RAPIDJSON_REPO="https://github.com/Tencent/rapidjson.git"
 readonly RAPIDJSON_COMMIT="ebd87cb468fb4cb060b37e579718c4a4125416c1"
 
+# valkey-audit module packaging (C; separate upstream source + version).
+# Upstream has no v1.0.0 tag yet, so the default ref is a pinned main commit;
+# audit/debian/patches carries the fixes that ref still needs.
+readonly AUDIT_PACKAGE_NAME="percona-valkey-audit"
+readonly DEFAULT_AUDIT_REPO="https://github.com/percona/valkey-audit.git"
+readonly DEFAULT_AUDIT_VERSION="1.0.0"
+readonly DEFAULT_AUDIT_BRANCH="b5ebc556e5af076fe067bf53771dea236db1d2fb"
+
 # valkey-bloom module packaging (Rust; separate upstream source + version)
 readonly BLOOM_PACKAGE_NAME="percona-valkey-bloom"
 readonly DEFAULT_BLOOM_REPO="https://github.com/valkey-io/valkey-bloom.git"
@@ -142,6 +150,15 @@ Usage: $0 [OPTIONS]
         --json_version=VER              valkey-json version (default: ${DEFAULT_JSON_VERSION})
         --json_branch=REF               valkey-json git ref (default: same as --json_version)
         --json_repo=URL                 valkey-json source repo (default: ${DEFAULT_JSON_REPO})
+        --audit_deps                    Install valkey-audit build deps (Percona repo, percona-valkey-dev(el), cmake, gcc)
+        --get_audit_sources             Fetch valkey-audit into a source tarball
+        --build_audit_src_rpm           Build the percona-valkey-audit source RPM
+        --build_audit_rpm               Build the percona-valkey-audit binary RPM
+        --build_audit_src_deb           Build the percona-valkey-audit source DEB
+        --build_audit_deb               Build the percona-valkey-audit binary DEB
+        --audit_version=VER             valkey-audit version (default: ${DEFAULT_AUDIT_VERSION})
+        --audit_branch=REF              valkey-audit git ref: branch, tag or commit (default: ${DEFAULT_AUDIT_BRANCH})
+        --audit_repo=URL                valkey-audit source repo (default: ${DEFAULT_AUDIT_REPO})
         --bloom_deps                    Install valkey-bloom build deps (rustup, clang, build tools)
         --get_bloom_sources             Fetch valkey-bloom + vendor cargo deps into an offline tarball
         --build_bloom_src_rpm           Build the percona-valkey-bloom source RPM
@@ -210,6 +227,15 @@ parse_arguments() {
             --json_version=*)            JSON_VERSION="${arg#*=}" ;;
             --json_branch=*)             JSON_BRANCH="${arg#*=}" ;;
             --json_repo=*)               JSON_REPO="${arg#*=}" ;;
+            --audit_deps=*|--audit_deps) AUDIT_DEPS=1 ;;
+            --get_audit_sources=*|--get_audit_sources) AUDIT_SOURCE=1 ;;
+            --build_audit_src_rpm=*|--build_audit_src_rpm) AUDIT_SRPM=1 ;;
+            --build_audit_rpm=*|--build_audit_rpm)   AUDIT_RPM=1 ;;
+            --build_audit_src_deb=*|--build_audit_src_deb) AUDIT_SDEB=1 ;;
+            --build_audit_deb=*|--build_audit_deb)   AUDIT_DEB=1 ;;
+            --audit_version=*)           AUDIT_VERSION="${arg#*=}" ;;
+            --audit_branch=*)            AUDIT_BRANCH="${arg#*=}" ;;
+            --audit_repo=*)              AUDIT_REPO="${arg#*=}" ;;
             --bloom_deps=*|--bloom_deps) BLOOM_DEPS=1 ;;
             --get_bloom_sources=*|--get_bloom_sources) BLOOM_SOURCE=1 ;;
             --build_bloom_src_rpm=*|--build_bloom_src_rpm) BLOOM_SRPM=1 ;;
@@ -1437,6 +1463,252 @@ build_json_deb() {
 }
 
 # ---------------------------------------------------------------------------
+# install_deps_audit — build deps for the valkey-audit (C) module.
+#   Same Percona repo setup as install_deps_json: the module builds against
+#   valkeymodule.h from percona-valkey-dev(el). Triggered by --audit_deps.
+# ---------------------------------------------------------------------------
+install_deps_audit() {
+    if [[ "$AUDIT_DEPS" -eq 0 ]]; then
+        return 0
+    fi
+
+    if [[ "$(id -u)" -ne 0 ]]; then
+        die "Cannot install dependencies — please run as root"
+    fi
+
+    local channel="${VALKEY_REPO_CHANNEL:-testing}"
+    local repo_name="${VALKEY_REPO_NAME:-valkey-91}"
+
+    if [[ "$OS" == "rpm" ]]; then
+        local pkg_mgr="yum"
+        command -v dnf &>/dev/null && pkg_mgr="dnf"
+        $pkg_mgr -y install https://repo.percona.com/yum/percona-release-latest.noarch.rpm
+        percona-release enable-only "${repo_name}" "${channel}" || percona-release enable "${repo_name}" "${channel}"
+        $pkg_mgr -y install \
+            gcc gcc-c++ cmake make git tar gzip rpm-build rpmdevtools \
+            percona-valkey-devel
+    else
+        export DEBIAN_FRONTEND=noninteractive
+        apt_get update
+        apt_get -y install wget ca-certificates gnupg lsb-release
+        wget -qO /tmp/percona-release.deb https://repo.percona.com/apt/percona-release_latest.generic_all.deb
+        dpkg -i /tmp/percona-release.deb || apt_get install -f -y
+        percona-release enable-only "${repo_name}" "${channel}" || percona-release enable "${repo_name}" "${channel}"
+        apt_get update
+        apt_get -y install \
+            debhelper devscripts dpkg-dev fakeroot \
+            cmake gcc g++ make git \
+            percona-valkey-dev
+    fi
+    ensure_syft_system
+}
+
+# ---------------------------------------------------------------------------
+# get_audit_sources — fetch valkey-audit into a source tarball
+# ---------------------------------------------------------------------------
+get_audit_sources() {
+    if [[ "$AUDIT_SOURCE" -eq 0 ]]; then
+        log_info "valkey-audit sources will not be downloaded"
+        return 0
+    fi
+
+    cd "$WORKDIR" || die "Cannot cd to $WORKDIR"
+
+    local name="${AUDIT_PACKAGE_NAME}-${AUDIT_VERSION}"
+    local srcdir="${WORKDIR}/${name}"
+
+    # A full clone + checkout (not --depth 1 --branch) so AUDIT_BRANCH can also
+    # be a commit, which is what the default is until upstream tags v1.0.0.
+    log_info "Cloning valkey-audit ${AUDIT_BRANCH} from ${AUDIT_REPO} ..."
+    rm -rf "${srcdir}"
+    git clone "${AUDIT_REPO}" "${name}" \
+        || die "Failed to clone valkey-audit from ${AUDIT_REPO}"
+    ( cd "${srcdir}" && git checkout -q "${AUDIT_BRANCH}" ) \
+        || die "Failed to check out valkey-audit ref ${AUDIT_BRANCH}"
+
+    local revision
+    revision="$(cd "${srcdir}" && git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+
+    log_info "Adding in-package README and settings reference ..."
+    cp "${BUILDER_SCRIPT_DIR}/../audit/README.packaging.md" "${srcdir}/README.packaging.md" \
+        || die "audit/README.packaging.md is missing"
+    cp "${BUILDER_SCRIPT_DIR}/../audit/valkey-audit.conf" "${srcdir}/valkey-audit.conf" \
+        || die "audit/valkey-audit.conf is missing"
+    # SBOM generator, invoked by the spec/rules at package-build time.
+    cp "${BUILDER_SCRIPT_DIR}/gen-module-sbom.sh" "${srcdir}/gen-module-sbom.sh" \
+        || die "gen-module-sbom.sh is missing"
+    chmod +x "${srcdir}/gen-module-sbom.sh"
+
+    # Upstream's own packaging/ dir is not used here; drop it so the tarball
+    # (and the SBOM scan) only carries what this repo builds.
+    rm -rf "${srcdir}/packaging"
+
+    log_info "Stripping VCS metadata ..."
+    find "${srcdir}" -name .git -type d -prune -exec rm -rf {} + 2>/dev/null || true
+
+    log_info "Creating ${name}.tar.gz ..."
+    tar --owner=0 --group=0 -czf "${name}.tar.gz" "${name}" \
+        || die "Failed to create valkey-audit source tarball"
+
+    # Properties file consumed by the Jenkins pipeline to derive the upload path.
+    cat > "${WORKDIR}/valkey-audit.properties" <<EOF
+PRODUCT=${AUDIT_PACKAGE_NAME}
+PRODUCT_FULL=${name}
+VERSION=${AUDIT_VERSION}
+BUILD_NUMBER=${BUILD_NUMBER:-}
+BUILD_ID=${BUILD_ID:-}
+REVISION=${revision}
+UPLOAD=UPLOAD/experimental/BUILDS/valkey-audit/${name}/${revision}/${BUILD_ID:-}
+EOF
+
+    copy_artifacts "source_tarball" "${name}.tar.gz"
+
+    cd "$CURDIR" || die "Cannot cd to $CURDIR"
+}
+
+# ---------------------------------------------------------------------------
+# build_audit_srpm — source RPM for percona-valkey-audit
+# ---------------------------------------------------------------------------
+build_audit_srpm() {
+    if [[ "$AUDIT_SRPM" -eq 0 ]]; then
+        log_info "valkey-audit SRC RPM will not be created"
+        return 0
+    fi
+
+    if [[ "$OS" == "deb" ]]; then
+        die "Cannot build src rpm on a Debian-based system"
+    fi
+
+    cd "$WORKDIR" || die "Cannot cd to $WORKDIR"
+
+    find_and_copy_artifact "source_tarball" "${AUDIT_PACKAGE_NAME}*.tar.gz"
+    local tarfile="$FOUND_FILE"
+
+    rm -fr audit_rpmbuild
+    mkdir -vp audit_rpmbuild/{SOURCES,SPECS,BUILD,SRPMS,RPMS}
+
+    cp -av "${BUILDER_SCRIPT_DIR}/../audit/rpm/${AUDIT_PACKAGE_NAME}.spec" audit_rpmbuild/SPECS/
+    # Spec patches are kept in audit/debian/patches (single source of truth,
+    # shared with the DEB quilt series); copy them next to the tarball.
+    cp -av "${BUILDER_SCRIPT_DIR}/../audit/debian/patches/"*.patch audit_rpmbuild/SOURCES/
+    mv -fv "$tarfile" audit_rpmbuild/SOURCES/
+
+    sed -i "s/^Version:.*$/Version:        ${AUDIT_VERSION}/" \
+        "audit_rpmbuild/SPECS/${AUDIT_PACKAGE_NAME}.spec"
+    sed -i "s/^Release:.*$/Release:        ${RELEASE}%{?dist}/" \
+        "audit_rpmbuild/SPECS/${AUDIT_PACKAGE_NAME}.spec"
+
+    rpmbuild -bs --define "_topdir ${WORKDIR}/audit_rpmbuild" --define "dist .generic" \
+        "audit_rpmbuild/SPECS/${AUDIT_PACKAGE_NAME}.spec"
+
+    copy_artifacts "srpm" audit_rpmbuild/SRPMS/*.src.rpm
+}
+
+# ---------------------------------------------------------------------------
+# build_audit_rpm — binary RPM for percona-valkey-audit
+# ---------------------------------------------------------------------------
+build_audit_rpm() {
+    if [[ "$AUDIT_RPM" -eq 0 ]]; then
+        log_info "valkey-audit RPM will not be created"
+        return 0
+    fi
+
+    if [[ "$OS" == "deb" ]]; then
+        die "Cannot build rpm on a Debian-based system"
+    fi
+
+    find_and_copy_artifact "srpm" "${AUDIT_PACKAGE_NAME}*.src.rpm"
+    local src_rpm="$FOUND_FILE"
+
+    cd "$WORKDIR" || die "Cannot cd to $WORKDIR"
+
+    rm -fr audit_rb
+    mkdir -vp audit_rb/{SOURCES,SPECS,BUILD,SRPMS,RPMS,BUILDROOT}
+    cp "$src_rpm" audit_rb/SRPMS/
+
+    rpmbuild --define "_topdir ${WORKDIR}/audit_rb" --define "dist .${OS_NAME}" \
+        --rebuild "audit_rb/SRPMS/${src_rpm}"
+
+    copy_artifacts "rpm" audit_rb/RPMS/*/*.rpm
+}
+
+# ---------------------------------------------------------------------------
+# build_audit_source_deb — source DEB for percona-valkey-audit
+# ---------------------------------------------------------------------------
+build_audit_source_deb() {
+    if [[ "$AUDIT_SDEB" -eq 0 ]]; then
+        log_info "valkey-audit source deb will not be created"
+        return 0
+    fi
+
+    if [[ "$OS" == "rpm" ]]; then
+        die "Cannot build source deb on an RPM-based system"
+    fi
+
+    cd "$WORKDIR" || die "Cannot cd to $WORKDIR"
+
+    local name="${AUDIT_PACKAGE_NAME}"
+    local ver="${AUDIT_VERSION}"
+
+    rm -rf "${name}-${ver}" "${name}_${ver}".orig.tar.gz "${name}_${ver}-"*
+
+    find_and_copy_artifact "source_tarball" "${name}*.tar.gz"
+    local tarfile="$FOUND_FILE"
+
+    # dpkg-source expects the orig tarball name to match the source package.
+    cp "$tarfile" "${name}_${ver}.orig.tar.gz"
+    tar xf "$tarfile"
+
+    # debian/ (including patches/) comes from this repo's audit/ tree.
+    cp -r "${BUILDER_SCRIPT_DIR}/../audit/debian" "${name}-${ver}/debian"
+    chmod +x "${name}-${ver}/debian/rules"
+
+    sed -i "1s/(\([^)]*\))/(${ver}-${RELEASE})/" "${name}-${ver}/debian/changelog"
+
+    ( cd "${name}-${ver}" && dpkg-buildpackage -S -us -uc ) \
+        || die "audit source deb build failed"
+
+    copy_artifacts "source_deb" "${name}_${ver}-"*.dsc
+    copy_artifacts "source_deb" "${name}_${ver}.orig.tar.gz"
+    copy_artifacts "source_deb" "${name}_${ver}-"*.debian.tar.* 2>/dev/null || true
+}
+
+# ---------------------------------------------------------------------------
+# build_audit_deb — binary DEB for percona-valkey-audit
+# ---------------------------------------------------------------------------
+build_audit_deb() {
+    if [[ "$AUDIT_DEB" -eq 0 ]]; then
+        log_info "valkey-audit deb will not be created"
+        return 0
+    fi
+
+    if [[ "$OS" == "rpm" ]]; then
+        die "Cannot build deb on an RPM-based system"
+    fi
+
+    cd "$WORKDIR" || die "Cannot cd to $WORKDIR"
+
+    local name="${AUDIT_PACKAGE_NAME}"
+    local ver="${AUDIT_VERSION}"
+
+    for ext in 'dsc' 'orig.tar.gz'; do
+        find_and_copy_artifact "source_deb" "${name}_${ver}*.${ext}"
+    done
+    find_and_copy_artifact "source_deb" "${name}_${ver}*.debian.tar.*" || true
+
+    rm -rf "${name}-${ver}"
+    local dsc
+    dsc="$(basename "$(find . -maxdepth 1 -name "${name}_${ver}*.dsc" | sort | tail -n1)")"
+    [ -n "$dsc" ] || die "audit dsc not found — run --build_audit_src_deb first"
+    dpkg-source -x "$dsc" "${name}-${ver}"
+
+    ( cd "${name}-${ver}" && deb_apply_codename && dpkg-buildpackage -b -us -uc ) \
+        || die "audit binary deb build failed"
+
+    copy_artifacts "deb" "${name}_${ver}-"*_*.deb
+}
+
+# ---------------------------------------------------------------------------
 # build_bloom_srpm — source RPM for percona-valkey-bloom
 # ---------------------------------------------------------------------------
 build_bloom_srpm() {
@@ -2335,6 +2607,15 @@ JSON_DEB=0
 JSON_REPO="$DEFAULT_JSON_REPO"
 JSON_VERSION="$DEFAULT_JSON_VERSION"
 JSON_BRANCH=""
+AUDIT_DEPS=0
+AUDIT_SOURCE=0
+AUDIT_SRPM=0
+AUDIT_RPM=0
+AUDIT_SDEB=0
+AUDIT_DEB=0
+AUDIT_REPO="$DEFAULT_AUDIT_REPO"
+AUDIT_VERSION="$DEFAULT_AUDIT_VERSION"
+AUDIT_BRANCH="$DEFAULT_AUDIT_BRANCH"
 BLOOM_DEPS=0
 BLOOM_SOURCE=0
 BLOOM_SRPM=0
@@ -2392,12 +2673,14 @@ check_workdir
 get_system
 install_deps
 install_deps_json
+install_deps_audit
 install_deps_bloom
 install_deps_search
 install_deps_bundle
 install_deps_admin
 get_sources
 get_json_sources
+get_audit_sources
 get_bloom_sources
 get_search_sources
 get_bundle_sources
@@ -2410,6 +2693,10 @@ build_json_srpm
 build_json_rpm
 build_json_source_deb
 build_json_deb
+build_audit_srpm
+build_audit_rpm
+build_audit_source_deb
+build_audit_deb
 build_bloom_srpm
 build_bloom_rpm
 build_bloom_source_deb
