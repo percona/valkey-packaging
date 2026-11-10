@@ -490,7 +490,7 @@ EOF
 
     if [[ "$LOCAL_BUILD" -eq 0 ]]; then
         log_info "Downloading packaging scripts from github"
-        git clone https://github.com/EvgeniyPatlan/valkey-packaging.git packaging
+        git clone https://github.com/percona/valkey-packaging.git packaging
 
         local packaging_branch="${PACKAGING_BRANCH:-$VERSION}"
         if [[ -n "$packaging_branch" ]]; then
