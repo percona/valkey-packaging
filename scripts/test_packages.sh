@@ -458,6 +458,21 @@ install_admin_from_pkg_dir() {
     return 0
 }
 
+# Optional packages (modules and bundle) are installed when the repo has them;
+# one that is not published yet is skipped, and its test then skips itself.
+OPTIONAL_REPO_PKGS=(percona-valkey-json percona-valkey-audit percona-valkey-bloom percona-valkey-search percona-valkey-bundle)
+
+install_optional_from_repo() {
+    local pkg
+    for pkg in "${OPTIONAL_REPO_PKGS[@]}"; do
+        if [[ "$OS_FAMILY" == "deb" ]]; then
+            apt-get install -y "$pkg" 2>&1
+        else
+            yum install -y "$pkg" 2>&1
+        fi || echo "Optional package $pkg not available in the repo — skipping."
+    done
+}
+
 install_from_repo_deb() {
     section_header "Installing from Percona repo (deb, channel=$REPO_CHANNEL)"
     apt-get update -qq
@@ -468,6 +483,7 @@ install_from_repo_deb() {
     apt-get install -y percona-valkey-server percona-valkey-sentinel \
         percona-valkey-tools percona-valkey-compat-redis percona-valkey-compat-redis-dev \
         percona-valkey-dev
+    install_optional_from_repo
     install_admin_from_repo
     # Capture installed package names and versions
     while IFS= read -r line; do
@@ -482,6 +498,7 @@ install_from_repo_rpm() {
     percona-release enable valkey-91 "$REPO_CHANNEL"
     yum install -y percona-valkey percona-valkey-compat-redis \
         percona-valkey-compat-redis-devel percona-valkey-devel
+    install_optional_from_repo
     install_admin_from_repo
     # Capture installed package names and versions
     while IFS= read -r line; do
