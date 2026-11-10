@@ -124,6 +124,47 @@ installs `libjson.so` into the Valkey module directory and depends on
 `percona-valkey-server`; the module is **not** loaded automatically — enable it
 with `loadmodule` in `valkey.conf` or `MODULE LOAD` at runtime.
 
+### percona-valkey-audit (audit logging module)
+
+The [valkey-audit](https://github.com/percona/valkey-audit) module
+(`libvalkeyaudit.so`, a C module) is packaged the same way, with its own
+upstream version, through the `*_audit_*` flags:
+
+```bash
+# RPM (on an RPM-based host)
+scripts/valkey_builder.sh \
+  --builddir=/tmp/BUILD \
+  --audit_deps \
+  --get_audit_sources \
+  --build_audit_src_rpm --build_audit_rpm \
+  --release=4
+
+# DEB (on a Debian/Ubuntu host)
+scripts/valkey_builder.sh \
+  --builddir=/tmp/BUILD \
+  --audit_deps \
+  --get_audit_sources \
+  --build_audit_src_deb --build_audit_deb \
+  --release=4
+```
+
+Upstream has no `v1.0.0` tag yet, so `--audit_branch` defaults to a pinned
+`main` commit (any branch, tag or commit works). `audit/debian/patches` carries
+two fixes that ref still needs, shared by the RPM spec and the DEB quilt series:
+building as C11 (CMake < 3.21 cannot enable C17) and reporting `1.0.0` instead
+of `1.0.0-rc1`. Drop them once upstream tags a release that includes both.
+
+The build passes `-DAUDIT_C_FLAGS_RELEASE="-O2 -DNDEBUG"`: upstream's default is
+`-O3 -march=native`, which ties the binary to the build host's CPU, and
+`-DCMAKE_C_FLAGS_RELEASE` does not override it. Packages up to `1.0.0-3` were
+built from the module's own `packaging/` dir and carry that host-specific code,
+so build with `--release=4` or higher so upgrades replace them.
+
+The package installs `libvalkeyaudit.so` into the Valkey module directory and a
+commented-out settings reference at `/etc/valkey/valkey.conf.d/valkey-audit.conf`,
+and depends on `percona-valkey-server`. The module is **not** loaded
+automatically.
+
 ### percona-valkey-bloom (Bloom filter module)
 
 The [valkey-bloom](https://github.com/valkey-io/valkey-bloom) module
@@ -262,6 +303,15 @@ docker build -f docker/Dockerfile.bundle -t percona-valkey-bundle:9.1.3 docker/
 | `--json_version=VER` | valkey-json version (default: `1.0.3`) |
 | `--json_branch=REF` | valkey-json git ref (default: same as `--json_version`) |
 | `--json_repo=URL` | valkey-json source repo (default: `https://github.com/valkey-io/valkey-json.git`) |
+| `--audit_deps` | Install valkey-audit build deps (Percona repo, `percona-valkey-dev(el)`, cmake, gcc) |
+| `--get_audit_sources` | Clone valkey-audit at `--audit_branch` and build a source tarball |
+| `--build_audit_src_rpm` | Build the percona-valkey-audit source RPM |
+| `--build_audit_rpm` | Build the percona-valkey-audit binary RPM |
+| `--build_audit_src_deb` | Build the percona-valkey-audit source DEB |
+| `--build_audit_deb` | Build the percona-valkey-audit binary DEB |
+| `--audit_version=VER` | valkey-audit version (default: `1.0.0`) |
+| `--audit_branch=REF` | valkey-audit git branch, tag or commit (default: a pinned upstream `main` commit) |
+| `--audit_repo=URL` | valkey-audit source repo (default: `https://github.com/percona/valkey-audit.git`) |
 | `--bloom_deps` | Install valkey-bloom build deps (Rust via rustup, clang) |
 | `--get_bloom_sources` | Clone valkey-bloom, vendor cargo deps, build an offline source tarball |
 | `--build_bloom_src_rpm` | Build the percona-valkey-bloom source RPM |
@@ -419,6 +469,7 @@ both DEB and RPM:
 | Package | Description |
 |---------|-------------|
 | `percona-valkey-json` | JSON data type module (`libjson.so`), loaded manually |
+| `percona-valkey-audit` | Audit logging module (`libvalkeyaudit.so`), loaded manually |
 | `percona-valkey-bloom` | Bloom filter module (`libvalkey_bloom.so`), loaded manually |
 | `percona-valkey-search` | Vector/full-text search module (`libsearch.so`), loaded manually |
 

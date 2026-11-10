@@ -1,0 +1,33 @@
+Source: percona-valkey-audit
+Section: database
+Priority: optional
+Maintainer: Evgeniy Patlan <evgeniy.patlan@percona.com>
+Build-Depends:
+ debhelper (>= 13),
+ cmake (>= 3.10),
+ gcc,
+ g++,
+ make,
+ percona-valkey-dev,
+Standards-Version: 4.7.2
+Homepage: https://github.com/percona/valkey-audit
+Rules-Requires-Root: no
+
+Package: percona-valkey-audit
+Architecture: amd64 arm64
+Depends:
+ ${shlibs:Depends},
+ ${misc:Depends},
+ percona-valkey-server (>= 9.0.0),
+Provides: valkey-audit
+Replaces: valkey-audit
+Conflicts: valkey-audit
+Description: Audit logging module for Percona Valkey
+ valkey-audit provides audit logging for Percona Valkey via the
+ libvalkeyaudit.so loadable module. It logs connections, authentication,
+ configuration changes, key operations and other commands to a file, syslog
+ or a TCP endpoint, in text, JSON or CSV format, with exclusion rules by user,
+ IP and command.
+ .
+ The module is installed into /usr/lib/valkey/modules. It is not loaded
+ automatically; enable it with 'loadmodule' in valkey.conf or 'MODULE LOAD'.

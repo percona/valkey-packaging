@@ -1,0 +1,53 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+# Path to the directory holding valkeymodule.h (shipped by percona-valkey-dev).
+VALKEY_INCLUDE_DIR ?= /usr/include
+
+PKGDIR := debian/percona-valkey-audit
+
+%:
+	dh $@
+
+# AUDIT_C_FLAGS_RELEASE replaces upstream's "-O3 -march=native" default, which
+# would tie the binary to the build host's CPU. Passing CMAKE_C_FLAGS_RELEASE
+# does not work: CMakeLists.txt overwrites it from AUDIT_C_FLAGS_RELEASE.
+# VALKEY_AUDIT_TESTS=OFF skips the test suite and its googletest download.
+override_dh_auto_configure:
+	cmake -S . -B obj-build \
+	    -DCMAKE_BUILD_TYPE=Release \
+	    -DAUDIT_C_FLAGS_RELEASE="-O2 -DNDEBUG" \
+	    -DVALKEY_INCLUDE_DIR=$(VALKEY_INCLUDE_DIR) \
+	    -DVALKEY_AUDIT_TESTS=OFF
+
+override_dh_auto_build:
+	cmake --build obj-build -j$$(nproc)
+
+override_dh_auto_install:
+	install -d $(PKGDIR)/usr/lib/valkey/modules
+	install -m 0755 obj-build/libvalkeyaudit.so \
+	    $(PKGDIR)/usr/lib/valkey/modules/libvalkeyaudit.so
+	# Commented-out settings reference, at the path earlier packages used.
+	install -D -m 0644 valkey-audit.conf \
+	    $(PKGDIR)/etc/valkey/valkey.conf.d/valkey-audit.conf
+	# Embedded SBOM set (SPDX/CycloneDX json+xml, Syft table, license manifest),
+	# generated from the built tree by the shipped gen-module-sbom.sh (fails loudly
+	# if Syft is missing; installed by valkey_builder.sh --audit_deps).
+	sh gen-module-sbom.sh percona-valkey-audit $$(dpkg-parsechangelog -S Version 2>/dev/null || echo 0) \
+	    $(PKGDIR)/usr/share/percona-valkey-audit/sbom .
+
+override_dh_fixperms:
+	dh_fixperms
+	# Valkey refuses to load a module without the execute bit; dh_fixperms
+	# normalises the .so back to 0644, so restore 0755 here.
+	chmod 0755 $(PKGDIR)/usr/lib/valkey/modules/libvalkeyaudit.so
+
+# The module build runs no tests during packaging (they need a running server).
+override_dh_auto_test:
+
+# Build the .deb with xz (not the zstd default on Ubuntu jammy+/Debian bookworm+):
+# the Percona repo's reprepro can't read zstd-compressed control.tar/data.tar.
+override_dh_builddeb:
+	dh_builddeb -- -Zxz
