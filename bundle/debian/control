@@ -17,6 +17,7 @@ Depends:
  percona-valkey-bloom (>= 1.0.1),
  percona-valkey-search (>= 1.2.0),
  percona-valkey-ldap (>= 1.1.1),
+ percona-valkey-audit (>= 1.0.0-4),
 Description: Percona Valkey server bundled with all supported modules
  percona-valkey-bundle is a meta-package that installs the Percona Valkey
  server together with all supported modules in one step:
@@ -25,6 +26,7 @@ Description: Percona Valkey server bundled with all supported modules
    * percona-valkey-bloom   (BF.*    — Bloom filters)
    * percona-valkey-search  (FT.*    — vector / full-text search)
    * percona-valkey-ldap    (LDAP authentication)
+   * percona-valkey-audit   (audit logging)
  .
  It contains no files of its own; it only declares dependencies. The modules
  are installed into /usr/lib/valkey/modules but are not loaded automatically;

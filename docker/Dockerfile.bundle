@@ -1,5 +1,5 @@
 # Percona Valkey Bundle image: the Percona Valkey server plus every supported
-# module (json, bloom, search, ldap), installed from the percona-valkey-bundle
+# module (json, bloom, search, ldap, audit), installed from the percona-valkey-bundle
 # meta-package. The entrypoint auto-loads all installed modules.
 #
 # Base: Red Hat Universal Base Image 9 (minimal), pinned by digest — same base
@@ -26,7 +26,7 @@ LABEL org.opencontainers.image.authors="info@percona.com" \
       org.opencontainers.image.source="https://github.com/valkey-io/valkey-bundle" \
       org.opencontainers.image.vendor="Percona" \
       org.opencontainers.image.title="Percona Valkey Bundle" \
-      org.opencontainers.image.description="Percona Valkey server bundled with all supported modules (json, bloom, search, ldap)" \
+      org.opencontainers.image.description="Percona Valkey server bundled with all supported modules (json, bloom, search, ldap, audit)" \
       org.opencontainers.image.version="${VALKEY_VERSION}" \
       org.opencontainers.image.base.name="${BASE_IMAGE}:${BASE_TAG}" \
       org.opencontainers.image.base.digest="${BASE_DIGEST}"
@@ -38,7 +38,7 @@ RUN microdnf -y update && \
     microdnf clean all
 
 # Import Percona + CentOS signing keys, add the Percona repo, then install the
-# percona-valkey-bundle meta-package — which pulls in the server and all four
+# percona-valkey-bundle meta-package — which pulls in the server and all five
 # module packages.
 RUN set -ex; \
     export GNUPGHOME="$(mktemp -d)"; \

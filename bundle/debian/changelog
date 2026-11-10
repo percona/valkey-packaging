@@ -1,3 +1,9 @@
+percona-valkey-bundle (9.2.0-1) unstable; urgency=medium
+
+  * Add percona-valkey-audit to the bundle.
+
+ -- Evgeniy Patlan <evgeniy.patlan@percona.com>  Tue, 10 Nov 2026 00:00:00 +0000
+
 percona-valkey-bundle (9.1.2-1) unstable; urgency=medium
 
   * Bump bundled Percona Valkey server to 9.1.2.

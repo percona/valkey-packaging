@@ -14,9 +14,11 @@ Installing `percona-valkey-bundle` pulls in:
 | `percona-valkey-bloom` | `BF.*` | Bloom filters (`libvalkey_bloom.so`) |
 | `percona-valkey-search` | `FT.*` | vector / full-text search (`libsearch.so`) |
 | `percona-valkey-ldap` | — | LDAP authentication (`libvalkey_ldap.so`) |
+| `percona-valkey-audit` | `AUDITUSERS` | audit logging (`libvalkeyaudit.so`) |
 
 Curated versions for 9.1 (from `valkey-io/valkey-bundle` `versions.json`):
 server 9.1.2, json 1.0.2, bloom 1.0.1, search 1.2.0, ldap 1.1.1.
+Audit 1.0.0 is a Percona addition; upstream's bundle does not ship it.
 
 ## Install
 
@@ -43,6 +45,7 @@ loadmodule /usr/lib64/valkey/modules/libjson.so
 loadmodule /usr/lib64/valkey/modules/libvalkey_bloom.so
 loadmodule /usr/lib64/valkey/modules/libsearch.so
 loadmodule /usr/lib64/valkey/modules/libvalkey_ldap.so
+loadmodule /usr/lib64/valkey/modules/libvalkeyaudit.so
 ```
 
 or at runtime with `MODULE LOAD` (requires `enable-module-command yes`).
