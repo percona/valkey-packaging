@@ -293,7 +293,7 @@ install_packages_rpm() {
 ###############################################################################
 # Optional packages (modules and bundle) are installed when the repo has them;
 # one that is not published yet is skipped, and its test then skips itself.
-OPTIONAL_REPO_PKGS=(percona-valkey-json percona-valkey-bloom percona-valkey-search percona-valkey-bundle)
+OPTIONAL_REPO_PKGS=(percona-valkey-json percona-valkey-audit percona-valkey-bloom percona-valkey-search percona-valkey-bundle)
 
 install_optional_from_repo() {
     local pkg
@@ -1227,6 +1227,88 @@ test_json_module() {
 }
 
 ###############################################################################
+# Audit module (percona-valkey-audit)
+###############################################################################
+test_audit_module() {
+    section_header "Test: Audit module (percona-valkey-audit)"
+
+    local module_dir module_path
+    if [[ "$OS_FAMILY" == "rpm" ]]; then
+        module_dir="$(rpm --eval %{_libdir})/valkey/modules"
+    else
+        module_dir="/usr/lib/valkey/modules"
+    fi
+    module_path="${module_dir}/libvalkeyaudit.so"
+
+    # Auto-skip when the audit package is not part of this test run.
+    if [[ ! -f "$module_path" ]]; then
+        skip "percona-valkey-audit not installed — skipping audit module tests"
+        return
+    fi
+
+    assert_file_exists "$module_path" "libvalkeyaudit.so installed in module dir"
+    assert_file_exists /etc/valkey/valkey.conf.d/valkey-audit.conf "valkey-audit.conf settings reference"
+
+    # Launch a throwaway server with the module loaded, independent of systemd
+    # so this also works in minimal containers.
+    local port=16396
+    local datadir
+    datadir="$(mktemp -d)"
+    valkey-server --port "$port" --daemonize yes --loadmodule "$module_path" \
+        --dir "$datadir" --logfile "$datadir/server.log" --save '' --appendonly no \
+        >/dev/null 2>&1 || true
+
+    local up=0 i
+    for i in $(seq 1 15); do
+        if [[ "$(valkey-cli -p "$port" PING 2>/dev/null)" == "PONG" ]]; then up=1; break; fi
+        sleep 1
+    done
+
+    if [[ "$up" -ne 1 ]]; then
+        fail "throwaway valkey-server with libvalkeyaudit.so started"
+        tail -5 "$datadir/server.log" 2>/dev/null || true
+        rm -rf "$datadir"
+        return
+    fi
+    pass "valkey-server loaded libvalkeyaudit.so"
+
+    assert_command_output_contains "MODULE LIST shows audit" "audit" \
+        valkey-cli -p "$port" MODULE LIST
+    # The module logs "valkey-audit version: X" on load; the packages carry a
+    # patch that marks 1.0.0 as GA, so it must not say -rcN.
+    local verline
+    verline="$(grep -o 'valkey-audit version: [^ ]*' "$datadir/server.log" 2>/dev/null | head -1)"
+    if [[ -n "$verline" && "$verline" != *-rc* ]]; then
+        pass "module reports a GA version (${verline#*: })"
+    else
+        fail "module reports a GA version (got: ${verline:-nothing logged})"
+    fi
+
+    # Functional check: a rejected command must land in the audit log. The
+    # default command_result_mode (failures) logs those; switching it to "all"
+    # only takes effect at module load, so successful commands are not probed.
+    local audit_log="$datadir/audit.log"
+    assert_command_output_contains "audit log redirected to the test dir" "OK" \
+        valkey-cli -p "$port" CONFIG SET audit.protocol "file $audit_log"
+    valkey-cli -p "$port" PKGTESTPROBE >/dev/null 2>&1 || true
+
+    local logged=0
+    for i in $(seq 1 10); do
+        if grep -q PKGTESTPROBE "$audit_log" 2>/dev/null; then logged=1; break; fi
+        sleep 1
+    done
+    if [[ "$logged" -eq 1 ]]; then
+        pass "rejected command was written to the audit log"
+    else
+        fail "rejected command was written to the audit log"
+        tail -5 "$audit_log" 2>/dev/null || true
+    fi
+
+    valkey-cli -p "$port" SHUTDOWN NOSAVE >/dev/null 2>&1 || true
+    rm -rf "$datadir"
+}
+
+###############################################################################
 # Bloom module (percona-valkey-bloom)
 ###############################################################################
 test_bloom_module() {
@@ -1561,6 +1643,7 @@ main() {
     test_logrotate
     test_sbom
     test_json_module
+    test_audit_module
     test_bloom_module
     test_search_module
     test_bundle_meta

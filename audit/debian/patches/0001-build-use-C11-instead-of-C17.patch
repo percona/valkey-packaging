@@ -1,0 +1,38 @@
+From 0ce6b126cd0961bfc96afbf8e75181d1223a18e7 Mon Sep 17 00:00:00 2001
+From: Evgeniy Patlan <evgeniy.patlan@percona.com>
+Date: Tue, 10 Nov 2026 10:10:57 +0200
+Subject: [PATCH 1/2] build: use C11 instead of C17
+
+
+CMake < 3.21 (Debian bullseye, older Oracle Linux 8) cannot enable C17 for
+GCC and fails at configure time. C17 is C11 plus defect fixes, and the module
+uses no C17-only features, so build as C11 everywhere.
+
+CMakeLists.txt has CRLF line endings; this patch keeps them.
+Drop once upstream percona/valkey-audit builds as C11.
+---
+ CMakeLists.txt | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 9adc27a..5bd5ce4 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -14,7 +14,7 @@ if(NOT CMAKE_BUILD_TYPE)
+ endif()
+ 
+ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+-set(CMAKE_C_STANDARD 17)
++set(CMAKE_C_STANDARD 11)
+ set(CMAKE_C_STANDARD_REQUIRED ON)
+ set(CMAKE_C_EXTENSIONS ON)
+ set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
+@@ -77,7 +77,7 @@ set_target_properties(valkeyaudit PROPERTIES
+     VERSION ${PROJECT_VERSION}
+     SOVERSION ${PROJECT_VERSION_MAJOR}
+     COMPILE_WARNING_AS_ERROR ON
+-    C_STANDARD 17
++    C_STANDARD 11
+     POSITION_INDEPENDENT_CODE ON
+ )
+ 
