@@ -17,6 +17,7 @@ Depends:
  percona-valkey-bloom (>= 1.0.1),
  percona-valkey-search (>= 1.2.1),
  percona-valkey-ldap (>= 1.1.1),
+ percona-valkey-audit (>= 1.0.0-4),
 Recommends:
  percona-valkey-admin-server (>= 1.2.0),
 Description: Percona Valkey server bundled with all supported modules
@@ -27,6 +28,7 @@ Description: Percona Valkey server bundled with all supported modules
    * percona-valkey-bloom   (BF.*    — Bloom filters)
    * percona-valkey-search  (FT.*    — vector / full-text search)
    * percona-valkey-ldap    (LDAP authentication)
+   * percona-valkey-audit   (audit logging)
  .
  It also recommends percona-valkey-admin-server, the web administration
  interface, which apt installs along with the bundle wherever its Node (>= 20)

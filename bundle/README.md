@@ -14,6 +14,7 @@ Installing `percona-valkey-bundle` pulls in:
 | `percona-valkey-bloom` | `BF.*` | Bloom filters (`libvalkey_bloom.so`) |
 | `percona-valkey-search` | `FT.*` | vector / full-text search (`libsearch.so`) |
 | `percona-valkey-ldap` | — | LDAP authentication (`libvalkey_ldap.so`) |
+| `percona-valkey-audit` | `AUDITUSERS` | audit logging (`libvalkeyaudit.so`) |
 
 and recommends:
 
@@ -23,7 +24,8 @@ and recommends:
 
 Curated versions for 9.1 (from `valkey-io/valkey-bundle` `versions.json`):
 server 9.1.3, json 1.0.3, bloom 1.0.1, search 1.2.1, ldap 1.1.1.
-Admin 1.2.0 is a Percona addition; upstream's bundle ships no admin interface.
+Audit 1.0.0 and admin 1.2.0 are Percona additions; upstream's bundle ships
+neither.
 
 ### Why admin is recommended and not required
 
@@ -72,6 +74,7 @@ loadmodule /usr/lib64/valkey/modules/libjson.so
 loadmodule /usr/lib64/valkey/modules/libvalkey_bloom.so
 loadmodule /usr/lib64/valkey/modules/libsearch.so
 loadmodule /usr/lib64/valkey/modules/libvalkey_ldap.so
+loadmodule /usr/lib64/valkey/modules/libvalkeyaudit.so
 ```
 
 or at runtime with `MODULE LOAD` (requires `enable-module-command yes`).

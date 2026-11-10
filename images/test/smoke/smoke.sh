@@ -202,12 +202,12 @@ module_loaded() {
 
 no_packaged_modules() {
     # Valkey always reports a built-in lua module, so this asserts the absence
-    # of the four packaged ones rather than an empty list.
-    ! grep -qE '(^|[[:space:]])(json|bf|search|ldap)([[:space:]]|$)' <<<"$MODULES"
+    # of the five packaged ones rather than an empty list.
+    ! grep -qE '(^|[[:space:]])(json|bf|search|ldap|audit)([[:space:]]|$)' <<<"$MODULES"
 }
 
 if [ "$VARIANT" = "bundle" ]; then
-    for module in json bf search ldap; do
+    for module in json bf search ldap audit; do
         check "module ${module} is loaded" module_loaded "$module"
     done
 else

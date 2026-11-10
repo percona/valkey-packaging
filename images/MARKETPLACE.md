@@ -30,8 +30,8 @@ version; the rest is stable.
 >
 > Two images are available. The server image provides Valkey with Sentinel and
 > the full command-line tool set. The bundle image adds the JSON, Bloom filter,
-> vector and full-text search, and LDAP authentication modules, loaded and ready
-> to use on first boot.
+> vector and full-text search, LDAP authentication, and audit logging modules,
+> loaded and ready to use on first boot.
 >
 > Percona Valkey is free. Percona offers optional commercial support, services
 > and consulting.
@@ -43,7 +43,7 @@ Two variants, each on two architectures.
 | Variant | Packages | Modules loaded on boot |
 |---|---|---|
 | Server | `percona-valkey` | none |
-| Bundle | `percona-valkey-bundle`, `percona-valkey-admin-server` | json, bloom, search, ldap |
+| Bundle | `percona-valkey-bundle`, `percona-valkey-admin-server` | json, bloom, search, ldap, audit |
 
 The bundle image also carries the Valkey Admin web interface, enabled and
 already connected to the local instance with the password generated on first
@@ -92,6 +92,7 @@ Region coverage is listed in `packer/release.pkvars.hcl`.
 | valkey-bloom | 1.0.1 |
 | valkey-search | 1.2.1 |
 | valkey-ldap | 1.1.1 |
+| valkey-audit | 1.0.0 |
 | Base OS | Amazon Linux 2023 |
 
 Module versions track the curated set from `valkey-io/valkey-bundle`
@@ -212,7 +213,7 @@ Modules are loaded by `loadmodule` lines written into
 valkey-cli -a '<password>' MODULE LIST
 ```
 
-Reports `json`, `bf`, `search`, `ldap`, and the built-in `lua`. To run without a
+Reports `json`, `bf`, `search`, `ldap`, `audit`, and the built-in `lua`. To run without a
 module, remove its `loadmodule` line and restart the service.
 
 ## Security posture
