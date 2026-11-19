@@ -23,9 +23,9 @@ Source0:        percona-valkey-bundle-%{version}.tar.gz
 #   server 9.1.2, json 1.0.2, bloom 1.0.1, search 1.2.0, ldap 1.1.1.
 # valkey-audit is a Percona addition to that set.
 Requires:       percona-valkey%{?_isa} >= 9.1.2
-Requires:       percona-valkey-json%{?_isa} >= 1.0.2
+Requires:       percona-valkey-json%{?_isa} >= 1.0.3
 Requires:       percona-valkey-bloom%{?_isa} >= 1.0.1
-Requires:       percona-valkey-search%{?_isa} >= 1.2.0
+Requires:       percona-valkey-search%{?_isa} >= 1.2.1
 Requires:       percona-valkey-ldap%{?_isa} >= 1.1.1
 # 1.0.0-4 is the first audit build with portable CPU flags; 1.0.0-1..3 were
 # built with -march=native.
