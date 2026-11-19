@@ -87,10 +87,10 @@ Region coverage is listed in `packer/release.pkvars.hcl`.
 
 | Component | Version |
 |---|---|
-| Valkey | 9.1.1 |
-| valkey-json | 1.0.2 |
+| Valkey | 9.2.0 |
+| valkey-json | 1.0.3 |
 | valkey-bloom | 1.0.1 |
-| valkey-search | 1.2.0 |
+| valkey-search | 1.2.1 |
 | valkey-ldap | 1.1.1 |
 | valkey-audit | 1.0.0 |
 | Base OS | Amazon Linux 2023 |

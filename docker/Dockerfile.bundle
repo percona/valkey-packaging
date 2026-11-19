@@ -19,7 +19,7 @@ FROM ${BASE_IMAGE}:${BASE_TAG}@${BASE_DIGEST}
 ARG BASE_IMAGE
 ARG BASE_TAG
 ARG BASE_DIGEST
-ARG VALKEY_VERSION=9.1.2
+ARG VALKEY_VERSION=9.2.0
 ARG REPO_CHANNEL=testing
 
 LABEL org.opencontainers.image.authors="info@percona.com" \
@@ -53,7 +53,7 @@ RUN set -ex; \
     rm -rf "$GNUPGHOME" /tmp/percona-release.rpm; \
     rpm --import /etc/pki/rpm-gpg/PERCONA-PACKAGING-KEY; \
     percona-release disable all; \
-    percona-release enable valkey-91 ${REPO_CHANNEL}; \
+    percona-release enable valkey-92 ${REPO_CHANNEL}; \
     microdnf -y install \
         tar \
         gawk \

@@ -15,14 +15,14 @@ LABEL org.opencontainers.image.authors="info@percona.com" \
       org.opencontainers.image.vendor="Percona" \
       org.opencontainers.image.title="Percona Valkey" \
       org.opencontainers.image.description="Percona Valkey image built from Percona RPM package" \
-      org.opencontainers.image.version="9.1.2" \
+      org.opencontainers.image.version="9.2.0" \
       org.opencontainers.image.base.name="redhat/ubi9-minimal:latest" \
       org.opencontainers.image.base.digest="sha256:850143255ee0d1915f09aaa09f6ed31f24086ba605c323badfbefa95b8c52b0e"
 
 RUN microdnf -y update && \
     microdnf -y install glibc-langpack-en
 
-ENV VALKEY_VERSION=9.1.2
+ENV VALKEY_VERSION=9.2.0
 
 ARG REPO_CHANNEL=testing
 
@@ -40,7 +40,7 @@ RUN set -ex; \
     rm -rf "$GNUPGHOME" /tmp/percona-release.rpm; \
     rpm --import /etc/pki/rpm-gpg/PERCONA-PACKAGING-KEY; \
     percona-release disable all; \
-    percona-release enable valkey-91 ${REPO_CHANNEL}; \
+    percona-release enable valkey-92 ${REPO_CHANNEL}; \
     microdnf -y install \
         tar \
         gawk \

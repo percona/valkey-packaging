@@ -45,7 +45,7 @@ RUN set -eux; \
 	chown valkey:valkey /var/lib/valkey; \
 	wget -q -O /tmp/percona-release.deb https://repo.percona.com/apt/percona-release_latest.generic_all.deb; \
 	dpkg -i /tmp/percona-release.deb; \
-	percona-release enable valkey-91 ${REPO_CHANNEL}; \
+	percona-release enable valkey-92 ${REPO_CHANNEL}; \
 	apt-get install -y --no-install-recommends \
 		percona-valkey-tools \
 		percona-valkey-bundle \
@@ -111,7 +111,7 @@ FROM ${BASE_IMAGE}:${BASE_RUNTIME_TAG}@${BASE_RUNTIME_DIGEST}
 ARG BASE_IMAGE
 ARG BASE_RUNTIME_TAG
 ARG BASE_RUNTIME_DIGEST
-ARG VALKEY_VERSION=9.1.2
+ARG VALKEY_VERSION=9.2.0
 
 ENV VALKEY_VERSION=${VALKEY_VERSION}
 

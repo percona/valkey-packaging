@@ -22,8 +22,10 @@ and recommends:
 |---|---|
 | `percona-valkey-admin-server` | the web administration interface, on `127.0.0.1:8080` |
 
-Curated versions for 9.1 (from `valkey-io/valkey-bundle` `versions.json`):
-server 9.1.2, json 1.0.2, bloom 1.0.1, search 1.2.0, ldap 1.1.1.
+Versions for 9.2: server 9.2.0, json 1.0.3, bloom 1.0.1, search 1.2.1,
+ldap 1.1.1. Upstream's 9.2 set in `valkey-io/valkey-bundle` `versions.json`
+lists json 1.1.0 and search 1.3.0; until those are packaged, json and search
+stay on the versions shipped with 9.1.3.
 Audit 1.0.0 and admin 1.2.0 are Percona additions; upstream's bundle ships
 neither.
 
@@ -53,11 +55,11 @@ curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
 
 ```bash
 # RPM (RHEL/Oracle/Amazon)
-percona-release enable valkey-91 release   # or 'testing'
+percona-release enable valkey-92 release   # or 'testing'
 dnf install percona-valkey-bundle
 
 # DEB (Debian/Ubuntu)
-percona-release enable valkey-91 release
+percona-release enable valkey-92 release
 apt-get update && apt-get install percona-valkey-bundle
 ```
 

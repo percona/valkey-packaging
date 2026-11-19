@@ -40,7 +40,7 @@ RUN set -eux; \
 	apt-get upgrade -y; \
 	wget -q -O /tmp/percona-release.deb https://repo.percona.com/apt/percona-release_latest.generic_all.deb; \
 	dpkg -i /tmp/percona-release.deb; \
-	percona-release enable valkey-91 ${REPO_CHANNEL}; \
+	percona-release enable valkey-92 ${REPO_CHANNEL}; \
 	apt-get update; \
 	apt-get install -y --no-install-recommends percona-valkey-admin-server; \
 	rm -rf /var/lib/apt/lists/* /tmp/*.deb; \

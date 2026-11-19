@@ -8,7 +8,7 @@
 
 IMAGE_NAME := perconalab/valkey
 BUNDLE_IMAGE_NAME := perconalab/valkey-bundle
-VALKEY_VERSION := 9.1.2
+VALKEY_VERSION := 9.2.0
 REPO_CHANNEL ?= experimental
 
 TAG_HARDENED := $(VALKEY_VERSION)-hardened
@@ -19,13 +19,13 @@ MOD_IMAGE_PREFIX := perconalab/valkey-mod
 ADMIN_IMAGE_NAME := perconalab/valkey-admin
 
 # valkey-admin is a separate product on its own version line.
-VALKEY_ADMIN_VERSION := 1.2.0
+VALKEY_ADMIN_VERSION := 1.3.0
 TAG_ADMIN            := $(VALKEY_ADMIN_VERSION)
 TAG_ADMIN_HARDENED   := $(VALKEY_ADMIN_VERSION)-hardened
 
-MOD_VERSION_json   := 1.0.2
+MOD_VERSION_json   := 1.0.3
 MOD_VERSION_bloom  := 1.0.1
-MOD_VERSION_search := 1.2.0
+MOD_VERSION_search := 1.2.1
 MOD_VERSION_ldap   := 1.1.1
 MOD_VERSION_audit  := 1.0.0
 

@@ -26,14 +26,14 @@ spec:
           emptyDir: {}
       initContainers:
         - name: module-json
-          image: perconalab/valkey-mod-json:1.0.2
+          image: perconalab/valkey-mod-json:1.0.3
           command: ["cp", "-a", "/modules/json", "/shared/"]
           volumeMounts:
             - name: modules
               mountPath: /shared
       containers:
         - name: valkey
-          image: perconalab/valkey:9.1.2
+          image: perconalab/valkey:9.2.0
           args: ["--loadmodule", "/shared/json/libjson.so"]
           ports:
             - name: valkey

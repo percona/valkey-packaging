@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 
 VARIANT="${VALKEY_VARIANT:-slim}"
-VERSION="${VALKEY_VERSION:-9.1.1}"
+VERSION="${VALKEY_VERSION:-9.2.0}"
 MODULE_DIR=/usr/lib64/valkey/modules
 
 @test 'the percona-valkey package is installed' {

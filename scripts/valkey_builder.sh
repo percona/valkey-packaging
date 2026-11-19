@@ -1006,8 +1006,8 @@ install_deps_json() {
 
     local channel="${VALKEY_REPO_CHANNEL:-testing}"
     # Percona repo that ships the existing valkey packages (percona-valkey-devel).
-    # For 9.1 the percona-release component is "valkey-91" (override if needed).
-    local repo_name="${VALKEY_REPO_NAME:-valkey-91}"
+    # For 9.2 the percona-release component is "valkey-92" (override if needed).
+    local repo_name="${VALKEY_REPO_NAME:-valkey-92}"
 
     if [[ "$OS" == "rpm" ]]; then
         local pkg_mgr="yum"
@@ -1511,7 +1511,7 @@ install_deps_audit() {
     fi
 
     local channel="${VALKEY_REPO_CHANNEL:-testing}"
-    local repo_name="${VALKEY_REPO_NAME:-valkey-91}"
+    local repo_name="${VALKEY_REPO_NAME:-valkey-92}"
 
     if [[ "$OS" == "rpm" ]]; then
         local pkg_mgr="yum"

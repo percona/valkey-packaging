@@ -42,7 +42,7 @@ RUN set -ex; \
     rm -rf "$GNUPGHOME" /tmp/percona-release.rpm; \
     rpm --import /etc/pki/rpm-gpg/PERCONA-PACKAGING-KEY; \
     percona-release disable all; \
-    percona-release enable valkey-91 ${REPO_CHANNEL}; \
+    percona-release enable valkey-92 ${REPO_CHANNEL}; \
     \
     # Node ships as a DNF module on EL9 and no stream is enabled by default, so
     # every modular nodejs is hidden by modular filtering and the package's
