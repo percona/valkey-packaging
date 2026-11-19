@@ -430,11 +430,15 @@ install -Dm0644 %{SOURCE9} %{buildroot}%{_rpmmacrodir}/macros.%{valkey_name}
 sh gen-module-sbom.sh %{name} %{version}-%{release} %{buildroot}%{_datadir}/%{name}/sbom .
 
 install -Dm0640 valkey.conf %{buildroot}%{_conf_dir}/includes/valkey.defaults.conf
+# No longer used by sentinel-default.conf, but kept so Sentinel configs from
+# older packages that include it keep starting after an upgrade.
 install -Dm0640 sentinel.conf %{buildroot}%{_conf_dir}/includes/sentinel.defaults.conf
 
 # Install default instance configuration files
 install -Dm0640 valkey.default.conf %{buildroot}%{_conf_dir}/default.conf
-install -Dm0660 sentinel.default.conf %{buildroot}%{_conf_dir}/sentinel-default.conf
+# Sentinel rewrites its whole config when it saves state, so it gets one
+# self-contained file: an include would end up defining its primaries twice.
+install -Dm0640 sentinel.conf %{buildroot}%{_conf_dir}/sentinel-default.conf
 
 # Install system configuration
 %if 0%{?is_suse}
@@ -626,12 +630,16 @@ EOF
 %dir %{_libdir}/%{valkey_name}
 %dir %{valkey_modules_dir}
 
-%dir %{_conf_dir}
+# Sentinel saves state by writing a temp file next to its config and
+# renaming it over the config, and refuses to start if it cannot. The
+# sticky bit lets the valkey group do that while only letting it replace
+# files it owns, so root-owned configs such as default.conf stay protected.
+%dir %attr(1770,root,%{valkey_name}) %{_conf_dir}
 %dir %{_conf_dir}/includes
 %config(noreplace) %attr(0640,root,%{valkey_name}) %{_conf_dir}/includes/valkey.defaults.conf
 %config(noreplace) %attr(0640,root,%{valkey_name}) %{_conf_dir}/includes/sentinel.defaults.conf
 %config(noreplace) %attr(0640,root,%{valkey_name}) %{_conf_dir}/default.conf
-%config(noreplace) %attr(0660,root,%{valkey_name}) %{_conf_dir}/sentinel-default.conf
+%config(noreplace) %attr(0640,%{valkey_name},%{valkey_name}) %{_conf_dir}/sentinel-default.conf
 
 %dir %attr(0750,%{valkey_name},%{valkey_name}) %{_data_dir}
 %dir %attr(0750,%{valkey_name},%{valkey_name}) %{_data_dir}/default
@@ -678,6 +686,9 @@ EOF
   static libzstd, so a pinned zstd %{zstd_version} is built statically and
   bundled there, while other distros use their libzstd static package
 - Declare the vendored lz4 that Valkey 9.2 bundles and ship its licence
+- Make /etc/valkey root:valkey 1770 and ship sentinel-default.conf as a
+  self-contained valkey-owned config: Valkey 9.2 Sentinel refuses to start
+  unless it can create a temp file in its config directory
 * Tue Sep 01 2026 Evgeniy Patlan <evgeniy.patlan@percona.com> - 9.1.2-1
 - Bump to Valkey 9.1.2 (upstream 9.1.2 tag)
 
