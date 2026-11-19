@@ -241,19 +241,28 @@ install_packages_deb() {
     local debs=()
     for f in "$PKG_DIR"/percona-valkey*.deb; do
         [[ -f "$f" ]] || continue
+        # The admin server is installed separately: it is the one package that
+        # needs a Node >= 20 runtime, which most targets cannot resolve
+        # without help (see the comment above ensure_node_runtime_deb).
+        [[ "$f" == *percona-valkey-admin-server* ]] && continue
         debs+=("$f")
     done
 
-    if [[ ${#debs[@]} -eq 0 ]]; then
+    # An admin-only directory is not an empty one: the admin artifact was
+    # deliberately left out of the list above.
+    if [[ ${#debs[@]} -eq 0 ]] && [[ -z "$(admin_artifacts_in_pkg_dir deb)" ]]; then
         echo "ERROR: No percona-valkey*.deb files found in $PKG_DIR" >&2
         exit 1
     fi
 
-    echo "Installing ${#debs[@]} package(s)..."
-    apt-get install -y "${debs[@]}" 2>&1 || {
-        echo "Install failed, attempting with --fix-broken..."
-        apt-get install -y --fix-broken "${debs[@]}" 2>&1
-    }
+    if [[ ${#debs[@]} -gt 0 ]]; then
+        echo "Installing ${#debs[@]} package(s)..."
+        apt-get install -y "${debs[@]}" 2>&1 || {
+            echo "Install failed, attempting with --fix-broken..."
+            apt-get install -y --fix-broken "${debs[@]}" 2>&1
+        }
+    fi
+    install_admin_from_pkg_dir "deb"
     # Capture installed package names and versions
     while IFS= read -r line; do
         INSTALLED_PKGS+=("$line")
@@ -271,16 +280,24 @@ install_packages_rpm() {
         [[ "$f" == *.src.rpm ]] && continue
         [[ "$f" == *debuginfo* ]] && continue
         [[ "$f" == *debugsource* ]] && continue
+        # Installed separately: see the comment above the Node runtime
+        # helpers below.
+        [[ "$f" == *percona-valkey-admin-server* ]] && continue
         rpms+=("$f")
     done
 
-    if [[ ${#rpms[@]} -eq 0 ]]; then
+    # An admin-only directory is not an empty one: the admin artifact was
+    # deliberately left out of the list above.
+    if [[ ${#rpms[@]} -eq 0 ]] && [[ -z "$(admin_artifacts_in_pkg_dir rpm)" ]]; then
         echo "ERROR: No percona-valkey*.rpm files found in $PKG_DIR" >&2
         exit 1
     fi
 
-    echo "Installing ${#rpms[@]} package(s)..."
-    yum localinstall -y "${rpms[@]}" 2>&1
+    if [[ ${#rpms[@]} -gt 0 ]]; then
+        echo "Installing ${#rpms[@]} package(s)..."
+        yum localinstall -y "${rpms[@]}" 2>&1
+    fi
+    install_admin_from_pkg_dir "rpm"
     # Capture installed package names and versions
     while IFS= read -r line; do
         [[ -n "$line" ]] && INSTALLED_PKGS+=("$line")
@@ -321,17 +338,153 @@ install_percona_release_rpm() {
     yum install -y https://repo.percona.com/yum/percona-release-latest.noarch.rpm
 }
 
+###############################################################################
+# Node runtime for percona-valkey-admin-server
+###############################################################################
+# The admin server is the only package in the set that needs a language
+# runtime: "nodejs (>= 20)" on DEB, "(nodejs >= 1:20 or nodejs22 >= 1:22)" on
+# RPM. Almost no target satisfies that floor from its own archive -- bookworm
+# ships Node 18, jammy 12, noble 18, and on EL8/EL9 modular filtering hides
+# every modular nodejs until a stream is enabled, so the dependency cannot
+# resolve even though a new enough package exists in the repository. Amazon
+# Linux 2023 satisfies it through nodejs22, and trixie and EL10 through their
+# base nodejs.
+#
+# So the admin package is installed in a transaction of its own, after the
+# runtime has been arranged the way the product's own install documentation
+# tells an operator to arrange it (valkey-admin/README.packaging.md): enable a
+# module stream on EL, add NodeSource on the older DEB archives. Keeping it
+# out of the main transaction means a target that cannot get a runtime still
+# tests everything else instead of failing the whole install.
+#
+# When the admin package ends up not installed, test_admin_server skips with
+# the reason recorded here -- an unobtainable Node runtime is a property of
+# the test host, not a defect in the package.
+ADMIN_SKIP_REASON=""
+ADMIN_WAS_INSTALLED=0
+
+node_major() {
+    local v
+    v="$(node --version 2>/dev/null || true)"
+    [[ -n "$v" ]] || v="$(nodejs --version 2>/dev/null || true)"
+    [[ -n "$v" ]] || return 1
+    v="${v#v}"
+    printf '%s' "${v%%.*}"
+}
+
+node_runtime_is_current() {
+    local major
+    major="$(node_major)" || return 1
+    [[ -n "$major" ]] || return 1
+    [[ "$major" =~ ^[0-9]+$ ]] || return 1
+    (( major >= 20 ))
+}
+
+ensure_node_runtime_deb() {
+    node_runtime_is_current && return 0
+    local candidate
+    candidate="$(apt-cache policy nodejs 2>/dev/null | awk '/Candidate:/ {print $2}')"
+    echo "nodejs in this archive: ${candidate:-not available} (the admin server needs >= 20)"
+    echo "Adding the NodeSource 22.x archive..."
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash - >/dev/null 2>&1 || return 1
+    apt-get install -y -qq nodejs >/dev/null 2>&1 || return 1
+    node_runtime_is_current
+}
+
+ensure_node_runtime_rpm() {
+    node_runtime_is_current && return 0
+    # Enabling a stream only unhides the modular packages; the admin package's
+    # own dependency then pulls the runtime in. Amazon Linux 2023 and EL10
+    # carry no nodejs module at all, where this fails harmlessly and the
+    # dependency resolves from the base repositories.
+    if dnf -y module enable nodejs:22 >/dev/null 2>&1 \
+        || dnf -y module enable nodejs:20 >/dev/null 2>&1; then
+        echo "Enabled a nodejs module stream >= 20"
+    else
+        echo "No nodejs module stream to enable; relying on the base repositories"
+    fi
+}
+
+install_admin_from_repo() {
+    section_header "Installing percona-valkey-admin-server"
+    if [[ "$OS_FAMILY" == "deb" ]]; then
+        if ! ensure_node_runtime_deb; then
+            ADMIN_SKIP_REASON="no Node >= 20 runtime could be installed on this host"
+            echo "SKIPPING admin server: $ADMIN_SKIP_REASON"
+            return 0
+        fi
+        if apt-get install -y percona-valkey-admin-server; then
+            echo "percona-valkey-admin-server installed."
+            return 0
+        fi
+        ADMIN_SKIP_REASON="percona-valkey-admin-server is not in the $REPO_CHANNEL channel of this repository"
+    else
+        ensure_node_runtime_rpm
+        if yum install -y percona-valkey-admin-server; then
+            echo "percona-valkey-admin-server installed."
+            return 0
+        fi
+        ADMIN_SKIP_REASON="percona-valkey-admin-server could not be installed from the $REPO_CHANNEL channel (missing package, or no Node >= 20 runtime)"
+    fi
+    echo "SKIPPING admin server: $ADMIN_SKIP_REASON"
+    return 0
+}
+
+admin_artifacts_in_pkg_dir() {
+    local ext="$1" f
+    for f in "$PKG_DIR"/percona-valkey-admin-server*."$ext"; do
+        [[ -f "$f" ]] || continue
+        printf '%s\n' "$f"
+    done
+}
+
+install_admin_from_pkg_dir() {
+    local ext="$1"
+    local artifacts=()
+    while IFS= read -r f; do
+        [[ -n "$f" ]] && artifacts+=("$f")
+    done < <(admin_artifacts_in_pkg_dir "$ext")
+
+    if [[ ${#artifacts[@]} -eq 0 ]]; then
+        ADMIN_SKIP_REASON="no percona-valkey-admin-server*.$ext in $PKG_DIR"
+        return 0
+    fi
+
+    section_header "Installing percona-valkey-admin-server"
+    if [[ "$ext" == "deb" ]]; then
+        if ! ensure_node_runtime_deb; then
+            ADMIN_SKIP_REASON="no Node >= 20 runtime could be installed on this host"
+            echo "SKIPPING admin server: $ADMIN_SKIP_REASON"
+            return 0
+        fi
+        if apt-get install -y "${artifacts[@]}"; then
+            echo "percona-valkey-admin-server installed."
+            return 0
+        fi
+    else
+        ensure_node_runtime_rpm
+        if yum localinstall -y "${artifacts[@]}"; then
+            echo "percona-valkey-admin-server installed."
+            return 0
+        fi
+    fi
+    ADMIN_SKIP_REASON="percona-valkey-admin-server did not install from $PKG_DIR (no Node >= 20 provider for its dependency)"
+    echo "SKIPPING admin server: $ADMIN_SKIP_REASON"
+    return 0
+}
+
 install_from_repo_deb() {
     section_header "Installing from Percona repo (deb, channel=$REPO_CHANNEL)"
     apt-get update -qq
     apt-get install -y -qq wget gnupg2 lsb-release curl
     install_percona_release_deb
-    percona-release enable valkey-91 "$REPO_CHANNEL"
+    percona-release enable valkey-92 "$REPO_CHANNEL"
     apt-get update -qq
     apt-get install -y percona-valkey-server percona-valkey-sentinel \
         percona-valkey-tools percona-valkey-compat-redis percona-valkey-compat-redis-dev \
         percona-valkey-dev
     install_optional_from_repo
+    install_admin_from_repo
     # Capture installed package names and versions
     while IFS= read -r line; do
         INSTALLED_PKGS+=("$line")
@@ -342,10 +495,11 @@ install_from_repo_deb() {
 install_from_repo_rpm() {
     section_header "Installing from Percona repo (rpm, channel=$REPO_CHANNEL)"
     install_percona_release_rpm
-    percona-release enable valkey-91 "$REPO_CHANNEL"
+    percona-release enable valkey-92 "$REPO_CHANNEL"
     yum install -y percona-valkey percona-valkey-compat-redis \
         percona-valkey-compat-redis-devel percona-valkey-devel
     install_optional_from_repo
+    install_admin_from_repo
     # Capture installed package names and versions
     while IFS= read -r line; do
         [[ -n "$line" ]] && INSTALLED_PKGS+=("$line")
@@ -1183,6 +1337,25 @@ test_clean_removal() {
         assert_file_not_exists /usr/lib/systemd/system/valkey-sentinel@.service "valkey-sentinel@.service"
     fi
 
+    # Admin server, when this run installed it. The DEB purge branch in
+    # debian/percona-valkey-admin-server.postrm is also responsible for the
+    # operator data directory and the service user.
+    if [[ "$ADMIN_WAS_INSTALLED" -eq 1 ]]; then
+        assert_dir_not_exists /usr/lib/percona-valkey-admin-server "admin payload directory"
+        if [[ "$OS_FAMILY" == "deb" ]]; then
+            assert_file_not_exists /lib/systemd/system/valkey-admin.service "valkey-admin.service"
+            assert_dir_not_exists /etc/valkey-admin "/etc/valkey-admin"
+            assert_dir_not_exists /var/lib/valkey-admin "/var/lib/valkey-admin"
+            if id valkey-admin >/dev/null 2>&1; then
+                fail "purge removed the valkey-admin service user"
+            else
+                pass "purge removed the valkey-admin service user"
+            fi
+        else
+            assert_file_not_exists /usr/lib/systemd/system/valkey-admin.service "valkey-admin.service"
+        fi
+    fi
+
     # Deb purge should remove data/config/log dirs
     if [[ "$OS_FAMILY" == "deb" ]]; then
         assert_dir_not_exists /var/lib/valkey "/var/lib/valkey"
@@ -1562,6 +1735,102 @@ test_bundle_meta() {
 }
 
 ###############################################################################
+# Admin server (percona-valkey-admin-server)
+###############################################################################
+test_admin_server() {
+    section_header "Test: admin server (percona-valkey-admin-server)"
+
+    # Auto-skip when the admin server is not part of this run, carrying the
+    # reason the install step recorded (see install_admin_from_repo).
+    local installed=0
+    if [[ "$OS_FAMILY" == "rpm" ]]; then
+        rpm -q percona-valkey-admin-server >/dev/null 2>&1 && installed=1
+    else
+        dpkg -s percona-valkey-admin-server >/dev/null 2>&1 && installed=1
+    fi
+    if [[ "$installed" -ne 1 ]]; then
+        skip "percona-valkey-admin-server not installed${ADMIN_SKIP_REASON:+ — $ADMIN_SKIP_REASON}"
+        return
+    fi
+    ADMIN_WAS_INSTALLED=1
+    pass "percona-valkey-admin-server is installed"
+
+    local payload=/usr/lib/percona-valkey-admin-server
+    local entry="$payload/apps/server/dist/index.cjs"
+    assert_dir_exists  "$payload"               "admin payload directory"
+    assert_file_exists "$entry"                 "admin server entrypoint"
+    assert_dir_exists  "$payload/node_modules"  "bundled node_modules"
+    assert_dir_exists  /usr/share/percona-valkey-admin-server/sbom "embedded SBOM directory"
+
+    # The unit runs as the valkey-admin user under ProtectSystem=strict, so
+    # these owners and modes are what let the service read its configuration
+    # and write its data at all.
+    local unit
+    if [[ "$OS_FAMILY" == "deb" ]]; then
+        unit=/lib/systemd/system/valkey-admin.service
+    else
+        unit=/usr/lib/systemd/system/valkey-admin.service
+    fi
+    assert_file_exists "$unit" "valkey-admin.service"
+    assert_file_exists /etc/valkey-admin/valkey-admin.env "valkey-admin.env"
+    assert_perms       /etc/valkey-admin/valkey-admin.env 640 "valkey-admin.env"
+    assert_owner       /etc/valkey-admin/valkey-admin.env root:valkey-admin "valkey-admin.env"
+    assert_dir_exists  /var/lib/valkey-admin "operator data directory"
+    assert_perms       /var/lib/valkey-admin 750 "operator data directory"
+    assert_owner       /var/lib/valkey-admin valkey-admin:valkey-admin "operator data directory"
+    assert_command_succeeds "valkey-admin service user exists" id valkey-admin
+
+    # The payload ships a prebuilt native addon. A runtime that satisfies the
+    # dependency but cannot load it leaves the service crash-looping at start,
+    # which no file-level check would catch.
+    assert_command_succeeds "valkey-glide native addon loads under the installed node" \
+        node -e "require('$payload/node_modules/@valkey/valkey-glide')"
+
+    if has_systemd; then
+        assert_command_succeeds "systemd can load valkey-admin.service" \
+            systemctl cat valkey-admin.service
+    fi
+
+    # Functional: the real entrypoint, run as the real service user, serving
+    # HTTP on a throwaway port with a throwaway DATA_DIR -- independent of
+    # systemd so this also works in minimal containers, the same way the
+    # module tests launch a throwaway valkey-server. Everything above can pass
+    # on a payload that is complete but cannot actually start.
+    local port=18080 datadir log status i
+    datadir="$(mktemp -d)"
+    log="$(mktemp)"
+    chown valkey-admin:valkey-admin "$datadir"
+    runuser -u valkey-admin -- env DEPLOYMENT_MODE=Web PORT="$port" DATA_DIR="$datadir" \
+        node "$entry" >"$log" 2>&1 &
+    local pid=$!
+
+    status=""
+    for i in $(seq 1 30); do
+        status="$(node -e "
+const http = require('http')
+http.get({ host: '127.0.0.1', port: $port, path: '/' }, res => {
+  console.log(res.statusCode)
+  res.resume()
+  process.exit(0)
+}).on('error', () => process.exit(1))
+" 2>/dev/null || true)"
+        [[ -n "$status" ]] && break
+        sleep 1
+    done
+
+    if [[ "$status" == "200" ]]; then
+        pass "admin server serves HTTP 200 on / as the valkey-admin user"
+    else
+        fail "admin server serves HTTP 200 on / as the valkey-admin user (got: ${status:-no response})"
+        sed -n '1,8p' "$log" | sed 's/^/        /'
+    fi
+
+    kill "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+    rm -rf "$datadir" "$log"
+}
+
+###############################################################################
 # Main
 ###############################################################################
 main() {
@@ -1673,6 +1942,7 @@ main() {
     test_bloom_module
     test_search_module
     test_bundle_meta
+    test_admin_server
 
     # Stop any lingering services before removal
     if has_systemd; then

@@ -16,19 +16,50 @@ Installing `percona-valkey-bundle` pulls in:
 | `percona-valkey-ldap` | — | LDAP authentication (`libvalkey_ldap.so`) |
 | `percona-valkey-audit` | `AUDITUSERS` | audit logging (`libvalkeyaudit.so`) |
 
-Curated versions for 9.1 (from `valkey-io/valkey-bundle` `versions.json`):
-server 9.1.2, json 1.0.2, bloom 1.0.1, search 1.2.0, ldap 1.1.1.
-Audit 1.0.0 is a Percona addition; upstream's bundle does not ship it.
+and recommends:
+
+| Package | Provides |
+|---|---|
+| `percona-valkey-admin-server` | the web administration interface, on `127.0.0.1:8080` |
+
+Versions for 9.2: server 9.2.0, json 1.0.3, bloom 1.0.1, search 1.2.1,
+ldap 1.1.1. Upstream's 9.2 set in `valkey-io/valkey-bundle` `versions.json`
+lists json 1.1.0 and search 1.3.0; until those are packaged, json and search
+stay on the versions shipped with 9.1.3.
+Audit 1.0.0 and admin 1.2.0 are Percona additions; upstream's bundle ships
+neither.
+
+### Why admin is recommended and not required
+
+`percona-valkey-admin-server` is the only package in the set that needs a
+language runtime: `nodejs (>= 20)` on DEB, `(nodejs >= 1:20 or nodejs22 >=
+1:22)` on RPM. Most targets cannot satisfy that from their own archives —
+bookworm ships Node 18, jammy 12, noble 18, and on EL8/EL9 modular filtering
+hides every modular `nodejs` until a stream is enabled. A hard dependency
+would therefore make `install percona-valkey-bundle` itself fail on those
+targets. As a recommendation it is installed by default (both `apt` and `dnf`
+honour weak dependencies out of the box) wherever the runtime resolves, and
+quietly left out where it does not.
+
+To install it where the runtime needs arranging first:
+
+```bash
+# EL8 / EL9
+dnf module enable nodejs:22
+
+# Debian / Ubuntu below Node 20
+curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+```
 
 ## Install
 
 ```bash
 # RPM (RHEL/Oracle/Amazon)
-percona-release enable valkey-91 release   # or 'testing'
+percona-release enable valkey-92 release   # or 'testing'
 dnf install percona-valkey-bundle
 
 # DEB (Debian/Ubuntu)
-percona-release enable valkey-91 release
+percona-release enable valkey-92 release
 apt-get update && apt-get install percona-valkey-bundle
 ```
 

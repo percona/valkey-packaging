@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       channel:
-        description: "valkey-91 repo channel"
+        description: "valkey-92 repo channel"
         type: choice
         default: release
         options: [release, testing, experimental]

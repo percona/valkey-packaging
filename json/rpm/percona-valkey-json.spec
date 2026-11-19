@@ -3,16 +3,13 @@
 %global valkey_modules_abi 1
 
 Name:           percona-valkey-json
-Version:        1.0.2
+Version:        1.0.3
 Release:        1%{?dist}
 Summary:        Native JSON data type module for Percona Valkey
 
 License:        BSD-3-Clause
 URL:            https://github.com/valkey-io/valkey-json
 Source0:        percona-valkey-json-%{version}.tar.gz
-# Build against the system valkeymodule.h instead of cloning valkey-io/valkey
-# (valkey-json 1.0.2 has no build-time switch for this).
-Patch0:         0001-build-against-system-valkeymodule-h.patch
 
 BuildRequires:  gcc-c++
 BuildRequires:  cmake >= 3.17
@@ -44,8 +41,9 @@ runtime.
 export CFLAGS="$(echo "${CFLAGS-}" | sed -e 's/-Werror=format-security//g')"
 export CXXFLAGS="$(echo "${CXXFLAGS-}" | sed -e 's/-Werror=format-security//g')"
 
-# Fully offline release build: the Patch0 change makes CMake copy the system
-# valkeymodule.h (VALKEY_MODULE_H_PATH) instead of cloning valkey-io/valkey, and
+# Fully offline release build: VALKEY_MODULE_H_PATH (supported upstream since
+# valkey-json 1.0.3) makes CMake copy the system valkeymodule.h instead of
+# cloning valkey-io/valkey, and
 # the RapidJSON source-dir override uses the vendored copy instead of cloning it.
 cmake -S . -B build \
     -DCMAKE_BUILD_TYPE=Release \
@@ -74,6 +72,9 @@ sh gen-module-sbom.sh %{name} %{version} %{buildroot}%{_datadir}/%{name}/sbom .
 %{_datadir}/%{name}/
 
 %changelog
+* Tue Oct 27 2026 Evgeniy Patlan <evgeniy.patlan@percona.com> - 1.0.3-1
+- Update to upstream valkey-json 1.0.3
+
 * Tue Sep 01 2026 Evgeniy Patlan <evgeniy.patlan@percona.com> - 1.0.2-2
 - Rebuild against Percona Valkey 9.1.2
 

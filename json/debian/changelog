@@ -1,3 +1,9 @@
+percona-valkey-json (1.0.3-1) unstable; urgency=medium
+
+  * Update to upstream valkey-json 1.0.3; drop the valkeymodule.h patch, upstream now honours VALKEY_MODULE_H_PATH natively.
+
+ -- Evgeniy Patlan <evgeniy.patlan@percona.com>  Tue, 27 Oct 2026 00:00:00 +0000
+
 percona-valkey-json (1.0.2-2) unstable; urgency=medium
 
   * Rebuild against Percona Valkey 9.1.2.

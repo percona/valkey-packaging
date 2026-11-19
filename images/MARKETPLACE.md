@@ -43,7 +43,21 @@ Two variants, each on two architectures.
 | Variant | Packages | Modules loaded on boot |
 |---|---|---|
 | Server | `percona-valkey` | none |
-| Bundle | `percona-valkey-bundle` | json, bloom, search, ldap, audit |
+| Bundle | `percona-valkey-bundle`, `percona-valkey-admin-server` | json, bloom, search, ldap, audit |
+
+The bundle image also carries the Valkey Admin web interface, enabled and
+already connected to the local instance with the password generated on first
+boot. It listens on `127.0.0.1:8080` only and has no login of its own, so it is
+reached over an SSH tunnel rather than through the security group:
+
+```bash
+ssh -L 8080:127.0.0.1:8080 ec2-user@<instance>
+# then open http://127.0.0.1:8080
+```
+
+Binding it to a routable address would expose every Valkey instance it can
+reach to anyone who can open the port; `/etc/valkey-admin/valkey-admin.env`
+documents the `SERVER_BIND_HOST` setting and the proxy requirement.
 
 Both include `valkey-server`, `valkey-sentinel`, `valkey-cli`,
 `valkey-benchmark`, `valkey-check-aof` and `valkey-check-rdb`. Sentinel is
@@ -73,10 +87,10 @@ Region coverage is listed in `packer/release.pkvars.hcl`.
 
 | Component | Version |
 |---|---|
-| Valkey | 9.1.1 |
-| valkey-json | 1.0.2 |
+| Valkey | 9.2.0 |
+| valkey-json | 1.0.3 |
 | valkey-bloom | 1.0.1 |
-| valkey-search | 1.2.0 |
+| valkey-search | 1.2.1 |
 | valkey-ldap | 1.1.1 |
 | valkey-audit | 1.0.0 |
 | Base OS | Amazon Linux 2023 |

@@ -5,7 +5,7 @@
 # runtime closure (RUNPATH=$ORIGIN), to be copied into a shared volume and
 # loaded by a stock Percona Valkey server (see ../k8s/ for the injection
 # pattern). The module .so is lifted from the prebuilt percona-valkey-<module>
-# package in the valkey-91 repo, so no module is compiled here.
+# package in the valkey-92 repo, so no module is compiled here.
 #
 # Build: docker build --build-arg MODULE=json -f Dockerfile.module .
 #
@@ -24,7 +24,7 @@ RUN set -eux; \
     dnf install -y patchelf; \
     dnf install -y https://repo.percona.com/yum/percona-release-latest.noarch.rpm; \
     percona-release disable all; \
-    percona-release enable valkey-91 "${REPO_CHANNEL}"; \
+    percona-release enable valkey-92 "${REPO_CHANNEL}"; \
     dnf install -y "percona-valkey-${MODULE}"; \
     so="$(rpm -ql "percona-valkey-${MODULE}" | grep -E '/valkey/modules/[^/]+\.so$' | head -n1)"; \
     test -n "${so}"; \

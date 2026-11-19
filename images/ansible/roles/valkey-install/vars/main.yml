@@ -6,3 +6,8 @@ valkey_variant_packages:
     - percona-valkey
   bundle:
     - percona-valkey-bundle
+    # Named explicitly even though percona-valkey-bundle recommends it: a weak
+    # dependency that cannot be resolved is dropped silently, which would bake
+    # an image without the admin interface and pass every test that skips when
+    # it is absent. Listed here, a missing package fails the build instead.
+    - percona-valkey-admin-server

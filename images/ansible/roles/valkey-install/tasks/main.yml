@@ -11,6 +11,15 @@
     name: "{{ valkey_variant_packages[valkey_variant] }}"
     state: present
 
+- name: Enable the admin server when this variant includes it
+  # It binds 127.0.0.1 by default (see the SERVER_BIND_HOST note in
+  # /etc/valkey-admin/valkey-admin.env), so enabling it exposes nothing beyond
+  # the instance itself; reaching the UI needs an SSH tunnel.
+  ansible.builtin.systemd:
+    name: valkey-admin.service
+    enabled: true
+  when: "'percona-valkey-admin-server' in valkey_variant_packages[valkey_variant]"
+
 - name: Query the installed Valkey version
   ansible.builtin.command: rpm -q --queryformat '%{VERSION}' percona-valkey
   register: valkey_installed

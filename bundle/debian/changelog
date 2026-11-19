@@ -1,6 +1,9 @@
 percona-valkey-bundle (9.2.0-1) unstable; urgency=medium
 
   * Add percona-valkey-audit to the bundle.
+  * Depend on percona-valkey-server >= 9.2.0, valkey-json >= 1.0.3 and
+    valkey-search >= 1.2.1.
+  * Recommend percona-valkey-admin-server.
 
  -- Evgeniy Patlan <evgeniy.patlan@percona.com>  Tue, 10 Nov 2026 00:00:00 +0000
 

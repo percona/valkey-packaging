@@ -4,7 +4,7 @@
 %global debug_package %{nil}
 
 Name:           percona-valkey-bundle
-Version:        9.1.2
+Version:        9.2.0
 Release:        1%{?dist}
 Summary:        Percona Valkey server bundled with all supported modules
 
@@ -18,18 +18,34 @@ Source0:        percona-valkey-bundle-%{version}.tar.gz
 
 # This is a meta-package: it ships no binaries of its own. Installing it pulls
 # in the Percona Valkey server together with every supported module, so the
-# whole stack is present with a single install. Versions track the curated
-# bundle set (see valkey-io/valkey-bundle versions.json for 9.1):
-#   server 9.1.2, json 1.0.2, bloom 1.0.1, search 1.2.0, ldap 1.1.1.
+# whole stack is present with a single install. Versions follow the curated
+# bundle set in valkey-io/valkey-bundle versions.json, except that json and
+# search stay on the 9.1 line until 1.1.0 and 1.3.0 (upstream's 9.2 set) are
+# packaged: server 9.2.0, json 1.0.3, bloom 1.0.1, search 1.2.1, ldap 1.1.1.
 # valkey-audit is a Percona addition to that set.
-Requires:       percona-valkey%{?_isa} >= 9.1.2
-Requires:       percona-valkey-json%{?_isa} >= 1.0.2
+Requires:       percona-valkey%{?_isa} >= 9.2.0
+Requires:       percona-valkey-json%{?_isa} >= 1.0.3
 Requires:       percona-valkey-bloom%{?_isa} >= 1.0.1
-Requires:       percona-valkey-search%{?_isa} >= 1.2.0
+Requires:       percona-valkey-search%{?_isa} >= 1.2.1
 Requires:       percona-valkey-ldap%{?_isa} >= 1.1.1
 # 1.0.0-4 is the first audit build with portable CPU flags; 1.0.0-1..3 were
 # built with -march=native.
 Requires:       percona-valkey-audit%{?_isa} >= 1.0.0-4
+
+# The web administration interface, as a weak dependency: dnf installs it along
+# with the bundle wherever it can be resolved, and leaves it out where it
+# cannot, instead of making the whole bundle uninstallable. It is the only
+# package in the set that needs a language runtime -- "(nodejs >= 1:20 or
+# nodejs22 >= 1:22)" -- and that floor is not met from the base repositories on
+# every target the bundle is built for: on EL8 and EL9 modular filtering hides
+# every modular nodejs until a stream is enabled. Amazon Linux 2023 resolves it
+# through nodejs22 and EL10 through its base nodejs. A hard Requires would turn
+# each of those into a failed `dnf install percona-valkey-bundle`.
+#
+# It is also a Percona addition rather than part of the upstream curated set
+# (valkey-io/valkey-bundle ships no admin interface), which is the second
+# reason to keep it weak.
+Recommends:     percona-valkey-admin-server%{?_isa} >= 1.2.0
 
 %description
 percona-valkey-bundle is a meta-package that installs the Percona Valkey server
@@ -40,6 +56,10 @@ together with all supported modules in one step:
   * percona-valkey-search  (FT.*    — vector / full-text search)
   * percona-valkey-ldap    (LDAP authentication)
   * percona-valkey-audit   (audit logging)
+
+It additionally recommends percona-valkey-admin-server, the web administration
+interface, which is installed along with the bundle wherever its Node (>= 20)
+runtime can be satisfied.
 
 It contains no files of its own; it only declares dependencies. The modules are
 installed into the Valkey module directory but are not loaded automatically;
@@ -61,6 +81,8 @@ enable them with 'loadmodule' in valkey.conf or 'MODULE LOAD' at runtime.
 %changelog
 * Tue Nov 10 2026 Evgeniy Patlan <evgeniy.patlan@percona.com> - 9.2.0-1
 - Add percona-valkey-audit to the bundle
+- Require percona-valkey >= 9.2.0, valkey-json >= 1.0.3 and valkey-search >= 1.2.1
+- Recommend percona-valkey-admin-server
 
 * Tue Sep 01 2026 Evgeniy Patlan <evgeniy.patlan@percona.com> - 9.1.2-1
 - Release 9.1.2
