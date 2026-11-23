@@ -193,8 +193,26 @@ else
     docker logs "$CNT" 2>&1 | tail -30
 fi
 
-check "collector wrote metrics to the data volume" \
-    sh -c "docker exec $CNT sh -c 'ls /var/lib/valkey-admin/${VK_CNT}-6379/*.ndjson' >/dev/null 2>&1"
+# Collectors write under DATA_DIR/<host>-<port>/ (valkey-admin < 1.3.0) or,
+# since 1.3.0, under a per-owner directory: DATA_DIR/<owner>/<host>-<port>/.
+# Accept either layout. The first rows are written right after the collector's
+# initial fetch, so a short wait covers a slow start.
+NDJSON_GLOBS="/var/lib/valkey-admin/${VK_CNT}-6379/*.ndjson /var/lib/valkey-admin/*/${VK_CNT}-6379/*.ndjson"
+NDJSON_FOUND=""
+for _ in $(seq 1 15); do
+    if docker exec "$CNT" sh -c "for f in ${NDJSON_GLOBS}; do [ -e \"\$f\" ] && exit 0; done; exit 1" >/dev/null 2>&1; then
+        NDJSON_FOUND=1
+        break
+    fi
+    sleep 2
+done
+if [ -n "$NDJSON_FOUND" ]; then
+    pass "collector wrote metrics to the data volume"
+else
+    fail "collector wrote metrics to the data volume"
+    echo "--- data volume ---"
+    docker exec "$CNT" sh -c 'ls -laR /var/lib/valkey-admin' 2>&1 | tail -30
+fi
 
 echo ""
 echo "6. Node runtime"
