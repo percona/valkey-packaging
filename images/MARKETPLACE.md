@@ -87,7 +87,7 @@ Region coverage is listed in `packer/release.pkvars.hcl`.
 
 | Component | Version |
 |---|---|
-| Valkey | 9.2.0 |
+| Valkey | 9.2.1 |
 | valkey-json | 1.0.3 |
 | valkey-bloom | 1.0.1 |
 | valkey-search | 1.2.1 |

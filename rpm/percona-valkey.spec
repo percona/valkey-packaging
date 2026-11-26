@@ -93,7 +93,7 @@
     INSTALL_LIB=%{buildroot}%{_libdir}
 
 Name:           percona-valkey
-Version:        9.2.0
+Version:        9.2.1
 Release:        1%{?dist}
 Summary:        Persistent key-value database
 
@@ -680,6 +680,11 @@ EOF
 %endif
 
 %changelog
+* Thu Nov 26 2026 Evgeniy Patlan <evgeniy.patlan@percona.com> - 9.2.1-1
+- Bump to Valkey 9.2.1 (upstream 9.2.1 tag): bugfix release that restores
+  pre-9.2 TLS certificate loading and fixes several crashes in IO threads,
+  cluster bus handling, PHGET during forkless save and COMMAND GETKEYS EXEC
+
 * Mon Oct 12 2026 Evgeniy Patlan <evgeniy.patlan@percona.com> - 9.2.0-1
 - Bump to Valkey 9.2.0 (upstream 9.2.0 tag)
 - Build with BUILD_ZSTD=yes for Zstandard streaming compression; EL has no

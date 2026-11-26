@@ -51,8 +51,8 @@ scripts/valkey_builder.sh \
   --build_src_rpm \
   --build_rpm \
   --install_deps \
-  --version=9.2.0 \
-  --branch=9.2.0
+  --version=9.2.1 \
+  --branch=9.2.1
 ```
 
 Output RPMs are placed in `/tmp/BUILD/rpm/` and in the current directory under `rpm/`.
@@ -71,8 +71,8 @@ scripts/valkey_builder.sh \
   --build_src_deb \
   --build_deb \
   --install_deps \
-  --version=9.2.0 \
-  --branch=9.2.0
+  --version=9.2.1 \
+  --branch=9.2.1
 ```
 
 Output .deb files are placed in `/tmp/BUILD/deb/` and in the current directory under `deb/`.
@@ -263,7 +263,7 @@ The resulting `percona-valkey-bundle` package depends on `percona-valkey`
 `percona-valkey-bloom`, `percona-valkey-search`, `percona-valkey-ldap`, and
 `percona-valkey-audit`.
 Versions track the curated set from `valkey-io/valkey-bundle` `versions.json`
-(9.2: server 9.2.0, json 1.0.3, bloom 1.0.1, search 1.2.1, ldap 1.1.1; upstream's 9.2 set has json 1.1.0 and search 1.3.0, not packaged yet); audit
+(9.2: server 9.2.1, json 1.0.3, bloom 1.0.1, search 1.2.1, ldap 1.1.1; upstream's 9.2 set has json 1.1.0 and search 1.3.0, not packaged yet); audit
 1.0.0 is a Percona addition. The
 modules are still **not loaded automatically** — enable the ones you want with
 `loadmodule` / `MODULE LOAD`.
@@ -278,7 +278,7 @@ A Percona-branded **bundle Docker image** is also provided
 auto-discovers and `--loadmodule`s every module in the Valkey module directory.
 
 ```bash
-docker build -f docker/Dockerfile.bundle -t percona-valkey-bundle:9.2.0 docker/
+docker build -f docker/Dockerfile.bundle -t percona-valkey-bundle:9.2.1 docker/
 ```
 
 ### Builder flags reference
@@ -292,9 +292,9 @@ docker build -f docker/Dockerfile.bundle -t percona-valkey-bundle:9.2.0 docker/
 | `--build_src_deb` | Build source DEB package |
 | `--build_deb` | Build binary DEB packages (requires source DEB) |
 | `--install_deps` | Install build dependencies (requires root) |
-| `--version=VER` | Version string (default: `9.2.0`) |
+| `--version=VER` | Version string (default: `9.2.1`) |
 | `--release=REL` | Release number (default: `1`) |
-| `--branch=BRANCH` | Git branch/tag to check out (default: `9.2.0`) |
+| `--branch=BRANCH` | Git branch/tag to check out (default: `9.2.1`) |
 | `--repo=URL` | Source repository URL (default: `https://github.com/valkey-io/valkey.git`) |
 | `--use_local_packaging_script` | Use `debian/` and `rpm/` from this repo instead of cloning |
 | `--get_json_sources` | Clone valkey-json, vendor RapidJSON, build an offline source tarball |
@@ -337,7 +337,7 @@ docker build -f docker/Dockerfile.bundle -t percona-valkey-bundle:9.2.0 docker/
 | `--build_bundle_rpm` | Build the percona-valkey-bundle binary RPM (per-arch meta) |
 | `--build_bundle_src_deb` | Build the percona-valkey-bundle source DEB |
 | `--build_bundle_deb` | Build the percona-valkey-bundle binary DEB (per-arch meta) |
-| `--bundle_version=VER` | valkey-bundle version (default: `9.2.0`) |
+| `--bundle_version=VER` | valkey-bundle version (default: `9.2.1`) |
 
 ## Testing packages
 

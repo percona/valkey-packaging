@@ -12,7 +12,7 @@ set -euo pipefail
 
 MOD_IMAGE="${1:?Usage: $0 <module-image:tag> <module> [server-image:tag]}"
 MODULE="${2:?Usage: $0 <module-image:tag> <module> [server-image:tag]}"
-VALKEY_VERSION="${VALKEY_VERSION:-9.2.0}"
+VALKEY_VERSION="${VALKEY_VERSION:-9.2.1}"
 SRV_IMAGE="${3:-perconalab/valkey:${VALKEY_VERSION}}"
 
 # module -> .so filename and the name it registers under in MODULE LIST
