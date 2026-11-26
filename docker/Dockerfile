@@ -15,14 +15,14 @@ LABEL org.opencontainers.image.authors="info@percona.com" \
       org.opencontainers.image.vendor="Percona" \
       org.opencontainers.image.title="Percona Valkey" \
       org.opencontainers.image.description="Percona Valkey image built from Percona RPM package" \
-      org.opencontainers.image.version="9.2.0" \
+      org.opencontainers.image.version="9.2.1" \
       org.opencontainers.image.base.name="redhat/ubi9-minimal:latest" \
       org.opencontainers.image.base.digest="sha256:850143255ee0d1915f09aaa09f6ed31f24086ba605c323badfbefa95b8c52b0e"
 
 RUN microdnf -y update && \
     microdnf -y install glibc-langpack-en
 
-ENV VALKEY_VERSION=9.2.0
+ENV VALKEY_VERSION=9.2.1
 
 ARG REPO_CHANNEL=testing
 

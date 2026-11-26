@@ -22,7 +22,7 @@ and recommends:
 |---|---|
 | `percona-valkey-admin-server` | the web administration interface, on `127.0.0.1:8080` |
 
-Versions for 9.2: server 9.2.0, json 1.0.3, bloom 1.0.1, search 1.2.1,
+Versions for 9.2: server 9.2.1, json 1.0.3, bloom 1.0.1, search 1.2.1,
 ldap 1.1.1. Upstream's 9.2 set in `valkey-io/valkey-bundle` `versions.json`
 lists json 1.1.0 and search 1.3.0; until those are packaged, json and search
 stay on the versions shipped with 9.1.3.
