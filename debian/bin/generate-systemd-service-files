@@ -111,6 +111,22 @@ RestrictSUIDSGID=true
 SystemCallArchitectures=native
 SystemCallFilter=@system-service
 SystemCallFilter=~ @privileged @resources
+# ~@privileged also removes the chown family, which ${BINARY} needs to set
+# the group of its Unix socket (unixsocketgroup). Allow it again: @chown, not
+# only chown(), since aarch64 has no chown syscall and glibc uses fchownat().
+SystemCallFilter=@chown
+# A blocked syscall fails with EPERM, which ${BINARY} logs, instead of killing
+# the process with SIGSYS.
+SystemCallErrorNumber=EPERM
+
+# unixsocketgroup with a group other than valkey: PrivateUsers=true maps only
+# root and the valkey user and group inside the service, so chown() to any
+# other group fails with "Invalid argument". Add the valkey user to that group
+# and turn PrivateUsers off with systemctl edit ${BINARY}.service:
+#
+#   [Service]
+#   SupplementaryGroups=www-data
+#   PrivateUsers=false
 
 # ${BINARY} can write to its own config file when in cluster mode so we
 # permit writing there by default. If you are not using this feature, it is
