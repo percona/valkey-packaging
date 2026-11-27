@@ -4,8 +4,8 @@
 %global debug_package %{nil}
 
 Name:           percona-valkey-bundle
-Version:        9.1.3
-Release:        2%{?dist}
+Version:        9.1.4
+Release:        1%{?dist}
 Summary:        Percona Valkey server bundled with all supported modules
 
 # Architecture-dependent meta-package: it carries no binaries, but it is built
@@ -20,9 +20,9 @@ Source0:        percona-valkey-bundle-%{version}.tar.gz
 # in the Percona Valkey server together with every supported module, so the
 # whole stack is present with a single install. Versions track the curated
 # bundle set (see valkey-io/valkey-bundle versions.json for 9.1):
-#   server 9.1.3, json 1.0.3, bloom 1.0.1, search 1.2.1, ldap 1.1.1.
+#   server 9.1.4, json 1.0.3, bloom 1.0.1, search 1.2.1, ldap 1.1.1.
 # valkey-audit is a Percona addition to that set.
-Requires:       percona-valkey%{?_isa} >= 9.1.3
+Requires:       percona-valkey%{?_isa} >= 9.1.4
 Requires:       percona-valkey-json%{?_isa} >= 1.0.3
 Requires:       percona-valkey-bloom%{?_isa} >= 1.0.1
 Requires:       percona-valkey-search%{?_isa} >= 1.2.1
@@ -78,6 +78,9 @@ enable them with 'loadmodule' in valkey.conf or 'MODULE LOAD' at runtime.
 %doc README.md
 
 %changelog
+* Fri Nov 27 2026 Evgeniy Patlan <evgeniy.patlan@percona.com> - 9.1.4-1
+- Release 9.1.4
+
 * Tue Nov 10 2026 Evgeniy Patlan <evgeniy.patlan@percona.com> - 9.1.3-2
 - Add percona-valkey-audit to the bundle
 

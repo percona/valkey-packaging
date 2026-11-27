@@ -66,7 +66,7 @@
     INSTALL_LIB=%{buildroot}%{_libdir}
 
 Name:           percona-valkey
-Version:        9.1.3
+Version:        9.1.4
 Release:        1%{?dist}
 Summary:        Persistent key-value database
 
@@ -589,6 +589,9 @@ EOF
 %endif
 
 %changelog
+* Fri Nov 27 2026 Evgeniy Patlan <evgeniy.patlan@percona.com> - 9.1.4-1
+- Bump to Valkey 9.1.4 (upstream 9.1.4 tag, security release: CVE-2026-130822)
+
 * Tue Oct 27 2026 Evgeniy Patlan <evgeniy.patlan@percona.com> - 9.1.3-1
 - Bump to Valkey 9.1.3 (upstream 9.1.3 tag, security release: GHSA-f4q9-j22m-xqq9)
 

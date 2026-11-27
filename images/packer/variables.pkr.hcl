@@ -1,6 +1,6 @@
 variable "valkey_version" {
   type    = string
-  default = "9.1.3"
+  default = "9.1.4"
 }
 
 variable "repo_channel" {
