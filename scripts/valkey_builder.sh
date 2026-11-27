@@ -1333,8 +1333,9 @@ build_json_rpm() {
 #   - Not in the repo (404): keep the new orig, download nothing.
 #   - In the repo, same upstream source: build on the published orig. The tree
 #     is unpacked from it, with this build's debian/ on top, and the files
-#     this repo adds to the tree (own files: rpm/, gen-module-sbom.sh,
-#     README.packaging.md, ...) are taken from this build. When those differ
+#     this repo adds to the tree or edits in it (own files: rpm/,
+#     gen-module-sbom.sh, README.packaging.md, search's sed-edited cmake
+#     files, ...) are taken from this build. When those differ
 #     from the published ones, dpkg-source records them as a patch.
 #   - Published, different upstream source: stop. One upstream version can't
 #     carry two different sources: use a new upstream version, or put the
@@ -1342,7 +1343,8 @@ build_json_rpm() {
 #   - Any other HTTP result: stop, so a network problem can't produce an orig
 #     that release refuses later.
 #
-#   Generated files (--generated, e.g. bloom's vendor/ and Cargo.lock) are
+#   Generated files (--generated: bloom's vendor/ and Cargo.lock, json's
+#   deps/rapidjson) are
 #   left out of the comparison and come from the published orig. Each build
 #   regenerates them: cargo generate-lockfile picks the newest matching
 #   crates, so they differ even when upstream did not change. The published
@@ -1355,7 +1357,7 @@ build_json_rpm() {
 #
 #   Run from the directory that holds <name>_<ver>.orig.tar.gz and the tree:
 #     use_published_orig [--generated <path>]... <source name> <upstream version> <tree> [own files]
-#   Own files and generated paths are names relative to the top of the tree.
+#   Own files and generated paths are relative to the top of the tree.
 # ---------------------------------------------------------------------------
 ORIG_SOURCE_OPTS=""
 use_published_orig() {
@@ -1427,6 +1429,7 @@ use_published_orig() {
     mv "${tree}/debian" "${check}/keep/debian"
     for f in "${own[@]}"; do
         if [[ -e "${tree}/${f}" ]]; then
+            mkdir -p "$(dirname "${check}/keep/${f}")"
             mv "${tree}/${f}" "${check}/keep/${f}"
         fi
     done
@@ -1441,6 +1444,7 @@ use_published_orig() {
                 own_changed+=("$f")
             fi
             rm -rf "${tree:?}/${f}"
+            mkdir -p "$(dirname "${tree}/${f}")"
             mv "${check}/keep/${f}" "${tree}/${f}"
         fi
     done
@@ -1614,7 +1618,9 @@ build_json_source_deb() {
     sed -i "1s/(\([^)]*\))/(${ver}-${RELEASE})/" "${name}-${ver}/debian/changelog"
 
     # A rebuild of a released upstream version must reuse its published orig.
-    use_published_orig "$name" "$ver" "${name}-${ver}" README.packaging.md gen-module-sbom.sh
+    # deps/rapidjson is vendored in get_json_sources.
+    use_published_orig --generated deps/rapidjson \
+        "$name" "$ver" "${name}-${ver}" README.packaging.md gen-module-sbom.sh
     # shellcheck disable=SC2086 # ORIG_SOURCE_OPTS is empty or one option
     ( cd "${name}-${ver}" && dpkg-buildpackage -S -us -uc ${ORIG_SOURCE_OPTS} ) \
         || die "json source deb build failed"
@@ -2145,7 +2151,10 @@ build_search_source_deb() {
     sed -i "1s/(\([^)]*\))/(${ver}-${RELEASE})/" "${name}-${ver}/debian/changelog"
 
     # A rebuild of a released upstream version must reuse its published orig.
-    use_published_orig "$name" "$ver" "${name}-${ver}" README.packaging.md gen-module-sbom.sh
+    # The cmake, build.sh and allocator files are edited in get_search_sources.
+    use_published_orig "$name" "$ver" "${name}-${ver}" README.packaging.md gen-module-sbom.sh \
+        CMakeLists.txt vmsdk/CMakeLists.txt build.sh cmake/Modules/valkey_search.cmake \
+        third_party/snowball/CMakeLists.txt vmsdk/src/memory_allocation_overrides.cc
     # shellcheck disable=SC2086 # ORIG_SOURCE_OPTS is empty or one option
     ( cd "${name}-${ver}" && dpkg-buildpackage -S -us -uc ${ORIG_SOURCE_OPTS} ) \
         || die "search source deb build failed"
