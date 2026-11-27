@@ -1274,6 +1274,144 @@ build_json_rpm() {
 }
 
 # ---------------------------------------------------------------------------
+# use_published_orig — build a DEB source package on the orig tarball that
+# the repo already publishes for this upstream version.
+#
+#   reprepro keeps one <source>_<version>.orig.tar.gz per upstream version
+#   and refuses another file under that name ("Already existing files can
+#   only be included again, if they are the same"). Our orig tarballs are not
+#   reproducible: fresh clone mtimes, the gzip header time and the files this
+#   repo adds to the tree all change between builds. A rebuild with a new
+#   release number (9.2.1-2 after 9.2.1-1) therefore made a different orig,
+#   and the release push failed on it.
+#
+#   The repo is the one this build is uploaded to, VALKEY_REPO_NAME, which
+#   the Jenkins job sets from its target repo parameter (valkey-91,
+#   valkey-92, valkey-93, ...). Without it nothing is checked: there is no
+#   safe guess for the repo.
+#
+#   Release 1 (the first build of an upstream version) keeps the new orig and
+#   downloads nothing. A rebuild (release 2 and up) first asks the target
+#   repo whether it publishes this upstream version, i.e. whether its pool
+#   has pool/main/<x>/<name>/<name>_<version>.orig.tar.gz. The orig gets
+#   there when the source package is released, which is the only case
+#   reprepro can refuse a different one.
+#   - Not in the repo (404): keep the new orig, download nothing.
+#   - In the repo, same upstream source: build on the published orig. The tree
+#     is unpacked from it, with this build's debian/ on top, and the files
+#     this repo adds to the tree (own files: rpm/, gen-module-sbom.sh,
+#     README.packaging.md, ...) are taken from this build. When those differ
+#     from the published ones, dpkg-source records them as a patch.
+#   - Published, different upstream source: stop. One upstream version can't
+#     carry two different sources: use a new upstream version, or put the
+#     change in debian/patches.
+#   - Any other HTTP result: stop, so a network problem can't produce an orig
+#     that release refuses later.
+#
+#   Sets ORIG_SOURCE_OPTS (extra dpkg-buildpackage options).
+#
+#   Run from the directory that holds <name>_<ver>.orig.tar.gz and the tree:
+#     use_published_orig <source name> <upstream version> <tree> [own files]
+#   Own files are names at the top of the tree.
+# ---------------------------------------------------------------------------
+ORIG_SOURCE_OPTS=""
+use_published_orig() {
+    local name="$1" ver="$2" tree="$3"
+    shift 3
+    local own=("$@")
+    local repo="${VALKEY_REPO_NAME:-}"
+    local orig="${name}_${ver}.orig.tar.gz"
+    local check="orig-check"
+    local f code url
+    ORIG_SOURCE_OPTS=""
+
+    # Release 1 is the first build of this upstream version: its orig is the
+    # one that gets published. Only a rebuild (release 2 and up) has to match
+    # an orig that is already there.
+    if [[ "${RELEASE:-1}" == "1" ]]; then
+        log_info "${name} ${ver}-1 is a first build: using the new orig tarball"
+        return 0
+    fi
+    if [[ -z "$repo" ]]; then
+        log_warn "VALKEY_REPO_NAME is not set, so the target repo is unknown: using the new orig tarball for ${name} ${ver}-${RELEASE}. The release push refuses it if ${orig} is already published."
+        return 0
+    fi
+
+    # Is this upstream version in the target repo?
+    url="https://repo.percona.com/${repo}/apt/pool/main/${name:0:1}/${name}/${orig}"
+    code="$(curl -sS -I -L --retry 3 --retry-delay 10 --max-time 60 \
+        -o /dev/null -w '%{http_code}' "$url")" || code="000"
+    case "$code" in
+        200) ;;
+        404)
+            log_info "${repo} does not publish ${name} ${ver} yet: using the new orig tarball"
+            return 0
+            ;;
+        *)
+            die "Cannot check whether ${repo} publishes ${orig} (HTTP ${code} for ${url})"
+            ;;
+    esac
+
+    log_info "${repo} publishes ${orig}: downloading it for the ${ver}-${RELEASE} rebuild"
+    curl -fsS -L --retry 3 --retry-delay 10 --max-time 600 -o published.orig.tar.gz "$url" \
+        || die "Cannot download ${url}"
+
+    # Compare the upstream source: both trees without debian/ and own files.
+    rm -rf "$check"
+    mkdir -p "${check}/published" "${check}/new" "${check}/keep"
+    tar xzf published.orig.tar.gz -C "${check}/published" --strip-components=1 \
+        || die "Cannot unpack the published ${orig}"
+    tar xzf "$orig" -C "${check}/new" --strip-components=1 \
+        || die "Cannot unpack the new ${orig}"
+    for f in debian "${own[@]}"; do
+        rm -rf "${check}/published/${f}" "${check}/new/${f}"
+    done
+    local changes
+    changes="$(diff -rq --no-dereference "${check}/published" "${check}/new" 2>&1 || true)"
+    if [[ -n "$changes" ]]; then
+        printf '%s\n' "$changes" | sed "s|${check}/||g" | head -50 >&2
+        die "The upstream source of ${name} ${ver} differs from the published ${orig} (first differences above). One upstream version can't carry two different sources: use a new upstream version, or move the change to debian/patches."
+    fi
+
+    # Rebuild the tree from the published orig, keeping this build's debian/
+    # and own files.
+    mv "${tree}/debian" "${check}/keep/debian"
+    for f in "${own[@]}"; do
+        if [[ -e "${tree}/${f}" ]]; then
+            mv "${tree}/${f}" "${check}/keep/${f}"
+        fi
+    done
+    rm -rf "$tree"
+    mkdir -p "$tree"
+    tar xzf published.orig.tar.gz -C "$tree" --strip-components=1 \
+        || die "Cannot unpack the published ${orig}"
+    local own_changed=()
+    for f in "${own[@]}"; do
+        if [[ -e "${check}/keep/${f}" ]]; then
+            if ! diff -rq --no-dereference "${tree}/${f}" "${check}/keep/${f}" >/dev/null 2>&1; then
+                own_changed+=("$f")
+            fi
+            rm -rf "${tree:?}/${f}"
+            mv "${check}/keep/${f}" "${tree}/${f}"
+        fi
+    done
+    rm -rf "${tree:?}/debian"
+    mv "${check}/keep/debian" "${tree}/debian"
+    mv published.orig.tar.gz "$orig"
+    rm -rf "$check"
+
+    log_info "Building ${name} ${ver} on the published ${orig} from ${repo}"
+    if [[ "${#own_changed[@]}" -gt 0 ]]; then
+        log_info "Packaging files newer than the published orig, recorded as a patch: ${own_changed[*]}"
+        # 3.0 (quilt) refuses unrecorded changes to upstream files unless told
+        # to commit them as a patch. 1.0 puts them in the .diff.gz anyway.
+        if grep -qs 'quilt' "${tree}/debian/source/format"; then
+            ORIG_SOURCE_OPTS="--source-option=--auto-commit"
+        fi
+    fi
+}
+
+# ---------------------------------------------------------------------------
 # build_source_deb
 # ---------------------------------------------------------------------------
 build_source_deb() {
@@ -1308,6 +1446,9 @@ build_source_deb() {
     tar czf "${PACKAGE_NAME}_${VERSION}.orig.tar.gz" "$builddir"
     rm -f "$tarfile"
 
+    # A rebuild of a released upstream version must reuse its published orig.
+    use_published_orig "$PACKAGE_NAME" "$VERSION" "$builddir" rpm gen-module-sbom.sh
+
     cd "$builddir" || die "Cannot cd to $builddir"
 
     # Regenerate the debian changelog
@@ -1322,7 +1463,8 @@ build_source_deb() {
 
     dch -D unstable --force-distribution -v "${VERSION}-${RELEASE}" \
         "Update to new ${PACKAGE_NAME} version ${VERSION}"
-    dpkg-buildpackage -S
+    # shellcheck disable=SC2086 # ORIG_SOURCE_OPTS is empty or one option
+    dpkg-buildpackage -S ${ORIG_SOURCE_OPTS}
 
     cd ..
 
@@ -1419,7 +1561,10 @@ build_json_source_deb() {
 
     sed -i "1s/(\([^)]*\))/(${ver}-${RELEASE})/" "${name}-${ver}/debian/changelog"
 
-    ( cd "${name}-${ver}" && dpkg-buildpackage -S -us -uc ) \
+    # A rebuild of a released upstream version must reuse its published orig.
+    use_published_orig "$name" "$ver" "${name}-${ver}" README.packaging.md gen-module-sbom.sh
+    # shellcheck disable=SC2086 # ORIG_SOURCE_OPTS is empty or one option
+    ( cd "${name}-${ver}" && dpkg-buildpackage -S -us -uc ${ORIG_SOURCE_OPTS} ) \
         || die "json source deb build failed"
 
     copy_artifacts "source_deb" "${name}_${ver}-"*.dsc
@@ -1665,7 +1810,10 @@ build_audit_source_deb() {
 
     sed -i "1s/(\([^)]*\))/(${ver}-${RELEASE})/" "${name}-${ver}/debian/changelog"
 
-    ( cd "${name}-${ver}" && dpkg-buildpackage -S -us -uc ) \
+    # A rebuild of a released upstream version must reuse its published orig.
+    use_published_orig "$name" "$ver" "${name}-${ver}" README.packaging.md valkey-audit.conf gen-module-sbom.sh
+    # shellcheck disable=SC2086 # ORIG_SOURCE_OPTS is empty or one option
+    ( cd "${name}-${ver}" && dpkg-buildpackage -S -us -uc ${ORIG_SOURCE_OPTS} ) \
         || die "audit source deb build failed"
 
     copy_artifacts "source_deb" "${name}_${ver}-"*.dsc
@@ -1802,7 +1950,10 @@ build_bloom_source_deb() {
 
     sed -i "1s/(\([^)]*\))/(${ver}-${RELEASE})/" "${name}-${ver}/debian/changelog"
 
-    ( cd "${name}-${ver}" && dpkg-buildpackage -S -us -uc ) \
+    # A rebuild of a released upstream version must reuse its published orig.
+    use_published_orig "$name" "$ver" "${name}-${ver}" README.packaging.md gen-module-sbom.sh
+    # shellcheck disable=SC2086 # ORIG_SOURCE_OPTS is empty or one option
+    ( cd "${name}-${ver}" && dpkg-buildpackage -S -us -uc ${ORIG_SOURCE_OPTS} ) \
         || die "bloom source deb build failed"
 
     copy_artifacts "source_deb" "${name}_${ver}-"*.dsc
@@ -1939,7 +2090,10 @@ build_search_source_deb() {
 
     sed -i "1s/(\([^)]*\))/(${ver}-${RELEASE})/" "${name}-${ver}/debian/changelog"
 
-    ( cd "${name}-${ver}" && dpkg-buildpackage -S -us -uc ) \
+    # A rebuild of a released upstream version must reuse its published orig.
+    use_published_orig "$name" "$ver" "${name}-${ver}" README.packaging.md gen-module-sbom.sh
+    # shellcheck disable=SC2086 # ORIG_SOURCE_OPTS is empty or one option
+    ( cd "${name}-${ver}" && dpkg-buildpackage -S -us -uc ${ORIG_SOURCE_OPTS} ) \
         || die "search source deb build failed"
 
     copy_artifacts "source_deb" "${name}_${ver}-"*.dsc
@@ -2143,7 +2297,10 @@ build_bundle_source_deb() {
 
     sed -i "1s/(\([^)]*\))/(${ver}-${RELEASE})/" "${name}-${ver}/debian/changelog"
 
-    ( cd "${name}-${ver}" && dpkg-buildpackage -S -us -uc ) \
+    # A rebuild of a released upstream version must reuse its published orig.
+    use_published_orig "$name" "$ver" "${name}-${ver}" README.md LICENSE
+    # shellcheck disable=SC2086 # ORIG_SOURCE_OPTS is empty or one option
+    ( cd "${name}-${ver}" && dpkg-buildpackage -S -us -uc ${ORIG_SOURCE_OPTS} ) \
         || die "bundle source deb build failed"
 
     copy_artifacts "source_deb" "${name}_${ver}-"*.dsc
@@ -2512,7 +2669,10 @@ build_admin_source_deb() {
 
     sed -i "1s/(\([^)]*\))/(${ver}-${RELEASE})/" "${name}-${ver}/debian/changelog"
 
-    ( cd "${name}-${ver}" && dpkg-buildpackage -S -us -uc ) \
+    # A rebuild of a released upstream version must reuse its published orig.
+    use_published_orig "$name" "$ver" "${name}-${ver}"
+    # shellcheck disable=SC2086 # ORIG_SOURCE_OPTS is empty or one option
+    ( cd "${name}-${ver}" && dpkg-buildpackage -S -us -uc ${ORIG_SOURCE_OPTS} ) \
         || die "valkey-admin source deb build failed"
 
     copy_artifacts "source_deb" "${name}_${ver}-"*.dsc
